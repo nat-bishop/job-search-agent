@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-11-30
+
 ### Changed
 - Migrated from `create_react_agent` to `create_deep_agent` as standard pattern
 - Updated documentation to reflect deep agents architecture
@@ -63,5 +65,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `src/services/` - For external service integrations (empty)
   - `src/api/` - For FastAPI server (empty)
 
-[unreleased]: https://github.com/nat-bishop/ai-agents/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/nat-bishop/ai-agents/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nat-bishop/ai-agents/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/nat-bishop/ai-agents/releases/tag/v0.1.0
