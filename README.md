@@ -29,11 +29,11 @@ cp .env.example .env
 
 ```
 src/
-├── agents/     # LangGraph agents (coming soon)
-├── tools/      # Tool functions for agents
+├── workflows/  # Agent workflows by domain (coming soon)
 ├── core/       # Config and LLM factory
 │   ├── config.py   # Settings from .env
 │   └── llm.py      # get_llm() - supports Ollama, Anthropic, OpenAI
+├── services/   # External integrations (future)
 └── api/        # FastAPI server (future)
 ```
 

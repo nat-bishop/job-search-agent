@@ -6,15 +6,25 @@ This document describes the current architecture of the AI Agents project.
 
 The project is in early development (Phase 1 complete). Only core infrastructure exists - no agents have been built yet.
 
+## Terminology
+
+| Term | Definition |
+|------|------------|
+| **Agent** | Autonomous unit with its own system prompt and tools |
+| **Workflow** | Collection of agents working together on a domain |
+| **Orchestrator** | Agent that coordinates others (supervisor, router, etc.) |
+
 ## Directory Structure
 
 ```
 src/
-├── core/           # Core infrastructure (✓ IMPLEMENTED)
+├── core/           # Shared infrastructure (✓ IMPLEMENTED)
 │   ├── config.py   # Pydantic settings from .env
 │   └── llm.py      # LLM factory with provider swapping
-├── agents/         # LangGraph agents (EMPTY - Phase 2+)
-├── tools/          # Tool functions for agents (EMPTY - Phase 2+)
+├── workflows/      # Agent workflows by domain (EMPTY - Phase 2+)
+│   ├── simple/     # Single-agent workflow (Phase 2)
+│   ├── job_search/ # Job search workflow (Phase 3)
+│   └── email/      # Multi-agent email workflow (Phase 5)
 ├── services/       # External service integrations (EMPTY - Phase 3+)
 └── api/            # FastAPI server (EMPTY - Phase 4+)
 ```
@@ -68,21 +78,41 @@ llm = get_agent_llm()
 
 The following components are planned but **do not exist yet**. This section exists only to provide context for future development.
 
-### Agents (Phase 2+)
+### Workflows (Phase 2+)
 
-Will use LangGraph's `create_react_agent` pattern:
-- ReAct loop: Reasoning → Action → Observation
-- Tool calling via LangChain tools
-- State management via LangGraph checkpointing
+Each workflow is a subdirectory containing:
+- `agent.py` - Agent with system prompt via `state_modifier`
+- `tools.py` - Tools specific to that workflow
 
-See [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) for the roadmap.
+For multi-agent workflows:
+- `graph.py` - Entrypoint defining how agents connect
+- `agents/` - Individual agent files
+- `tools/` - Shared tools for the domain
 
-### Tools (Phase 2+)
+```python
+# Single-agent workflow (Phase 2)
+# src/workflows/simple/agent.py
+agent = create_react_agent(
+    model=get_llm(),
+    tools=[get_current_time, web_search],
+    state_modifier="You are a helpful assistant..."
+)
 
-Will be LangChain-compatible tool functions:
-- Web search (via Exa API)
-- Browser automation (via Playwright)
-- Data storage/retrieval
+# Multi-agent workflow (Phase 5)
+# src/workflows/email/graph.py
+builder = StateGraph(EmailState)
+builder.add_node("drafter", drafter_agent)
+builder.add_node("reviewer", reviewer_agent)
+builder.add_edge("drafter", "reviewer")
+```
+
+### Multi-Agent Patterns
+
+Workflows can use different orchestration patterns:
+- **Supervisor → Workers**: One agent routes to others as tools
+- **Pipeline**: Sequential handoffs (A → B → C)
+- **Conditional routing**: Graph-based branching
+- **Peer collaboration**: Agents interact without hierarchy
 
 ### Services (Phase 3+)
 
@@ -96,10 +126,10 @@ Will encapsulate external integrations:
 ### API (Phase 4+)
 
 Will be a FastAPI server for:
-- Running agents on demand
+- Running workflows on demand
 - Scheduling periodic runs
-- Viewing agent results
-- Monitoring agent status
+- Viewing workflow results
+- Monitoring status
 
 ## Technology Stack
 

@@ -32,13 +32,13 @@ Living document tracking progress on the AI Agents project. High-level to allow 
 
 ---
 
-## Phase 2: First Agent
+## Phase 2: First Workflow
 
-Goal: Get ONE simple agent working end-to-end. Keep it minimal.
+Goal: Get ONE simple workflow working end-to-end. Keep it minimal.
 
-### Simple Test Agent
-- [ ] src/agents/simple.py - ReAct agent using `create_react_agent`
-- [ ] Two simple tools (inline, no separate files):
+### Simple Test Workflow
+- [ ] src/workflows/simple/agent.py - ReAct agent using `create_react_agent`
+- [ ] src/workflows/simple/tools.py - Two simple tools:
   - `get_current_time` - no deps, just returns time
   - `web_search` - calls Exa directly (no service layer yet)
 - [ ] Verify tool calling works with local Qwen 2.5
@@ -51,9 +51,9 @@ Goal: Get ONE simple agent working end-to-end. Keep it minimal.
 
 ---
 
-## Phase 3: Job Search Agent
+## Phase 3: Job Search Workflow
 
-Goal: Build the nursing job search agent with safe Playwright commands.
+Goal: Build the nursing job search workflow with safe Playwright commands.
 
 ### Discovery (using Playwright MCP)
 - [ ] Identify target job boards (Indeed, hospital career pages, etc.)
@@ -61,11 +61,11 @@ Goal: Build the nursing job search agent with safe Playwright commands.
 - [ ] Create safe, parameterized Playwright functions
 
 ### Implementation
+- [ ] src/workflows/job_search/agent.py - Job search agent
+- [ ] src/workflows/job_search/tools.py - Job board tools (search, filter, save)
 - [ ] src/services/browser.py - Playwright service with safe commands
-- [ ] src/tools/job_boards.py - Job board tool wrappers
-- [ ] src/agents/job_searcher/ - Job search agent
-- [ ] config/job_boards.yaml - Configurable board URLs/selectors
 - [ ] src/services/storage.py - SQLite for tracking found jobs
+- [ ] config/job_boards.yaml - Configurable board URLs/selectors
 
 ### Features
 - [ ] Search multiple boards
@@ -96,18 +96,20 @@ Goal: Run agents on schedules, expose via API.
 
 ---
 
-## Phase 5: Multi-Agent Orchestration
+## Phase 5: Multi-Agent Workflows
 
-Goal: Chain agents together for complex workflows.
+Goal: Build workflows with multiple coordinated agents.
 
-### Supervisor Pattern
-- [ ] src/agents/supervisor.py - Orchestration agent
-- [ ] Handoff mechanism between agents
-- [ ] Shared state/context passing
+### Patterns to Support
+- Supervisor → Workers (hierarchical)
+- Pipeline (sequential handoffs)
+- Conditional routing (graph-based)
 
-### Example Workflows
-- [ ] Draft → Review → Send (email workflow)
-- [ ] Search → Filter → Notify (job search workflow)
+### Example: Email Workflow
+- [ ] src/workflows/email/graph.py - Entrypoint, defines agent connections
+- [ ] src/workflows/email/agents/drafter.py - Writes drafts
+- [ ] src/workflows/email/agents/reviewer.py - Reviews before sending
+- [ ] src/workflows/email/tools/gmail.py - Gmail API tools
 
 ---
 
@@ -127,6 +129,14 @@ Not planned yet, add as needed:
 
 ## Notes & Decisions
 
+### Terminology
+
+| Term | Definition |
+|------|------------|
+| **Agent** | Autonomous unit with its own system prompt and tools |
+| **Workflow** | Collection of agents working together on a domain |
+| **Orchestrator** | Agent that coordinates others (supervisor, router, etc.) |
+
 ### Architecture Decisions
 
 | Decision | Rationale | Date |
@@ -135,6 +145,7 @@ Not planned yet, add as needed:
 | Ollama first, vLLM later | Simpler setup, can upgrade | 2024-11-29 |
 | Safe Playwright commands | Security - no arbitrary browser access | 2024-11-29 |
 | Delay service layer | Don't abstract until there's duplication | 2024-11-29 |
+| Workflows over flat agents | Colocate agents + tools by domain | 2024-11-29 |
 
 ### Lessons Learned
 

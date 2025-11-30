@@ -2,26 +2,31 @@
 
 Guidance for Claude Code when working in this repository.
 
-## Project State
+## Terminology
 
-**Early development** - only foundation exists (config, LLM factory). No agents yet.
-
-## Stack
-
-- LangGraph (ReAct agents)
-- Ollama/Qwen 2.5 for local models, Anthropic/OpenAI fallback
-- Playwright (future - for web scraping)
-- FastAPI (future - for API/scheduling)
+| Term | Definition |
+|------|------------|
+| **Agent** | Autonomous unit with its own system prompt and tools |
+| **Workflow** | Collection of agents working together on a domain |
+| **Orchestrator** | Agent that coordinates others (supervisor, router, etc.) |
 
 ## Structure
 
 ```
 src/
-├── agents/     # LangGraph graphs (empty - build next)
-├── tools/      # Tool functions
+├── workflows/  # Agent workflows by domain
+│   └── {name}/
+│       ├── agent.py   # create_react_agent with state_modifier
+│       └── tools.py   # Tools specific to this workflow
 ├── core/       # config.py, llm.py
+├── services/   # External integrations (when needed)
 └── api/        # FastAPI (future)
 ```
+
+Multi-agent workflows add:
+- `graph.py` - Entrypoint defining how agents connect
+- `agents/` - Individual agent files
+- `tools/` - Shared tools for the domain
 
 ## Key Files
 
@@ -46,7 +51,8 @@ mypy src/                  # Type check
 
 **LangGraph patterns:**
 - Use `create_react_agent` for simple agents
-- Tools are just functions - don't over-abstract
+- System prompt via `state_modifier` parameter
+- Tools are colocated with their workflow
 - Add service layer only when there's actual duplication
 
 **Local models:**
@@ -59,4 +65,5 @@ mypy src/                  # Type check
 - Manager/orchestrator classes (use LangGraph directly)
 - Config for features that don't exist yet
 - Abstracting before there's duplication
+- Flat tools/ directory separate from agents
 - Documenting aspirational features as if they exist
