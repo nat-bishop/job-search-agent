@@ -21,17 +21,6 @@ You complement automated tools (ruff, pytest, mypy). Focus on issues they CANNOT
 
 DO NOT check: code style, formatting, basic type hints (automated tools handle these).
 
-## Project Structure
-
-```
-src/
-├── agents/          # LangGraph graphs
-├── tools/           # Tool wrappers (call services, don't implement)
-├── services/        # Backend implementations
-├── core/            # Config (config.py), LLM factory (llm.py)
-└── api/             # FastAPI server
-```
-
 ## Review Process
 
 1. **Examine changes** - Run `git diff` to see modifications

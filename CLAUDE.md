@@ -16,7 +16,7 @@ Guidance for Claude Code when working in this repository.
 src/
 ├── workflows/  # Agent workflows by domain
 │   └── {name}/
-│       ├── agent.py   # create_react_agent with state_modifier
+│       ├── agent.py   # create_react_agent with prompt
 │       └── tools.py   # Tools specific to this workflow
 ├── core/       # config.py, llm.py
 ├── services/   # External integrations (when needed)
@@ -51,12 +51,15 @@ mypy src/                  # Type check
 
 **LangGraph patterns:**
 - Use `create_react_agent` for simple agents
-- System prompt via `state_modifier` parameter
+- System prompt via `prompt` parameter
 - Tools are colocated with their workflow
+- Tools return error strings for LLM-recoverable failures (not exceptions)
 - Add service layer only when there's actual duplication
+- See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#langgraph-patterns) for detailed patterns
 
 **Local models:**
 - Tool descriptions must be clear (Qwen less capable than Claude)
+- Include "Use this tool when..." bullets in tool docstrings
 - Handle tool call failures gracefully
 - Start with `qwen2.5:7b`, upgrade when needed
 

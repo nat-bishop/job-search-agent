@@ -7,8 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Simple workflow (`src/workflows/simple/`)
+  - ReAct agent using `create_react_agent` with system prompt
+  - `get_current_time` tool - returns current time (no dependencies)
+  - `web_search` tool - ready for Exa API (requires API key)
+- Interactive test script (`scripts/test_simple_agent.py`)
+- Error handling pattern: tools return error strings for LLM recovery
+
+### Validated
+- Tool calling works with local Qwen 2.5:7b via Ollama
+- Agent correctly selects tools based on user query
+- Agent responds without tools when appropriate (e.g., greetings)
+
 ### Planned
-- Simple test agent with basic tool calling
 - Job search agent with Playwright integration
 - API server with FastAPI
 - Scheduling system for automated runs

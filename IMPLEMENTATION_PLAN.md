@@ -6,7 +6,7 @@ Living document tracking progress on the AI Agents project. High-level to allow 
 
 **Phase 1: Foundation** - COMPLETE
 
-**Next: Phase 2** - Build a simple test agent to validate the architecture.
+**Phase 2: First Workflow** - COMPLETE
 
 ---
 
@@ -36,17 +36,31 @@ Living document tracking progress on the AI Agents project. High-level to allow 
 
 Goal: Get ONE simple workflow working end-to-end. Keep it minimal.
 
+### Local Model Setup
+- [x] Install Ollama from https://ollama.com/download
+- [x] Pull model: `ollama pull qwen2.5:7b`
+- [x] Verify running: `curl http://localhost:11434/api/tags`
+
 ### Simple Test Workflow
-- [ ] src/workflows/simple/agent.py - ReAct agent using `create_react_agent`
-- [ ] src/workflows/simple/tools.py - Two simple tools:
+- [x] src/workflows/simple/agent.py - ReAct agent using `create_react_agent`
+- [x] src/workflows/simple/tools.py - Two simple tools:
   - `get_current_time` - no deps, just returns time
   - `web_search` - calls Exa directly (no service layer yet)
-- [ ] Verify tool calling works with local Qwen 2.5
+- [x] scripts/test_simple_agent.py - Interactive test script
+- [x] Verify tool calling works with local Qwen 2.5
+
+### Exa SDK Setup (for web_search tool)
+Exa provides neural web search. Setup when needed:
+1. Get API key from https://exa.ai
+2. Add to `.env`: `EXA_API_KEY=your-key-here`
+3. The `web_search` tool will work automatically
+
+For now, testing uses only `get_current_time` (no API key required).
 
 ### Validation
-- [ ] Agent reasons and picks correct tool
-- [ ] Agent loops: tool → observe → decide
-- [ ] Agent knows when to stop
+- [x] Agent reasons and picks correct tool
+- [x] Agent loops: tool → observe → decide
+- [x] Agent knows when to stop
 - [ ] Test with both local and API models
 
 ---

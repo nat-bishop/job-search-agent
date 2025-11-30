@@ -1,130 +1,49 @@
-Discover safe Playwright automation commands for: $ARGUMENTS
+Discover safe Playwright automation patterns for: $ARGUMENTS
 
-You are a browser automation specialist who discovers and documents safe Playwright commands for web scraping. Your goal is to create pre-defined, parameterized functions that agents can use WITHOUT arbitrary browser access.
-
-**Core Mission:**
-
-Explore the target website, understand its structure, and output safe Playwright function definitions that can be added to `src/services/browser.py`.
+Use the **Playwright MCP** to explore the target website and create a safe, parameterized function.
 
 ## Safety Philosophy
 
-**Agents should NEVER have free-reign browser access.**
+Agents should never have arbitrary browser access. Instead of generic `browse(url, action)` functions, create specific, pre-defined commands:
 
-Instead of:
 ```python
-# BAD - unsafe, arbitrary navigation
-async def browse(url: str, action: str): ...
+# Goal-oriented function with clear purpose
+async def search_site_for_items(query: str, location: str) -> list[Item]: ...
 ```
 
-We create:
+## Discovery Process (using Playwright MCP)
+
+1. **Navigate** to the target site
+2. **Identify** key elements: forms, inputs, buttons, result containers
+3. **Document** CSS selectors for each element
+4. **Note** anti-bot measures, rate limits, pagination patterns
+5. **Test** the selectors work reliably
+
+## Output
+
+Provide a self-contained Python function:
+
 ```python
-# GOOD - safe, pre-defined commands
-async def search_indeed_nursing_jobs(location: str, keywords: str) -> list[JobListing]: ...
-async def get_hospital_careers(hospital_url: str) -> list[JobListing]: ...
-```
-
-## Discovery Process
-
-1. **Identify target site** (e.g., Indeed, hospital career page)
-
-2. **Explore structure** using Playwright MCP:
-   - Navigate to the site
-   - Identify search forms, filters, results containers
-   - Document CSS selectors for key elements
-   - Note any anti-bot measures
-
-3. **Document patterns**:
-   - URL structure and query parameters
-   - Required form fields
-   - Result pagination
-   - Data extraction selectors
-
-4. **Output function definition** with:
-   - Clear parameter types
-   - Documented selectors
-   - Error handling
-   - Rate limiting considerations
-
-## Output Format
-
-For each discovered site, provide:
-
-### Site Analysis
-```
-Site: [URL]
-Purpose: [What we're extracting]
-Anti-bot: [None/Cloudflare/reCAPTCHA/etc]
-Rate limit: [Recommended delay between requests]
-```
-
-### CSS Selectors
-```
-Search input: [selector]
-Location input: [selector]
-Submit button: [selector]
-Results container: [selector]
-Job card: [selector]
-  - Title: [selector]
-  - Company: [selector]
-  - Location: [selector]
-  - Link: [selector]
-Next page: [selector]
-```
-
-### Function Definition
-```python
-from dataclasses import dataclass
-from playwright.async_api import Page
-
-@dataclass
-class JobListing:
-    title: str
-    company: str
-    location: str
-    url: str
-    posted_date: str | None = None
-
-async def search_SITENAME_jobs(
+async def descriptive_function_name(
     page: Page,
-    keywords: str,
-    location: str,
-    *,
-    max_pages: int = 3,
-) -> list[JobListing]:
+    param1: str,
+    param2: str,
+) -> list[ResultType]:
     """
-    Search [SITE] for job listings.
+    Brief description of what this does.
 
-    Args:
-        page: Playwright page instance
-        keywords: Job search keywords (e.g., "nursing new grad")
-        location: Location to search (e.g., "California")
-        max_pages: Maximum pages to scrape (default 3)
-
-    Returns:
-        List of job listings found
+    Selectors (document for maintenance):
+        search_input: "input[name='q']"
+        submit_btn: "button[type='submit']"
+        results: ".result-item"
     """
-    jobs = []
-    # Implementation with documented selectors
-    ...
-    return jobs
-```
-
-### Config Entry
-```yaml
-# For config/job_boards.yaml
-sitename:
-  name: "Site Name"
-  base_url: "https://..."
-  selectors:
-    search_input: "..."
-    # ... all selectors
-  rate_limit_ms: 1000
+    # Implementation
 ```
 
 ## Best Practices
 
-- Always include `page.wait_for_selector()` before extraction
-- Use `page.wait_for_timeout(500)` between actions
-- Handle pagination gracefully (stop if no more results)
-- Return empty list on error, don't raise
-- Document any site-specific quirks
+- Use `page.wait_for_selector()` before interacting
+- Add small delays between actions (`page.wait_for_timeout(500)`)
+- Handle pagination gracefully
+- Return empty list on error (don't crash the agent)
+- Keep functions focused on ONE specific task

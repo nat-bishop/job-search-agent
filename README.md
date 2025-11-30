@@ -4,11 +4,22 @@ Personal AI agent system for automating tasks like job searching and research.
 
 Built with [LangGraph](https://github.com/langchain-ai/langgraph) using the ReAct pattern, designed to run on local models.
 
-## Status: Foundation
+## Status: First Agent Working
 
 This project is in early development. Current state:
 - Core infrastructure (config, LLM factory)
-- No agents yet - that's next
+- Simple test agent with tool calling (validated with local Qwen 2.5)
+
+## Quick Start
+
+```bash
+# After setup (below), run the test agent
+python scripts/test_simple_agent.py
+
+# Try these prompts:
+# > What time is it?
+# > Hello!
+```
 
 ## Setup
 
@@ -29,12 +40,15 @@ cp .env.example .env
 
 ```
 src/
-├── workflows/  # Agent workflows by domain (coming soon)
+├── workflows/  # Agent workflows by domain
+│   └── simple/ # Test agent (get_current_time, web_search tools)
 ├── core/       # Config and LLM factory
 │   ├── config.py   # Settings from .env
 │   └── llm.py      # get_llm() - supports Ollama, Anthropic, OpenAI
 ├── services/   # External integrations (future)
 └── api/        # FastAPI server (future)
+scripts/
+└── test_simple_agent.py  # Interactive CLI for testing
 ```
 
 ## Configuration
@@ -51,7 +65,7 @@ OLLAMA_URL=http://localhost:11434
 See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed progress.
 
 - [x] Phase 1: Foundation (config, LLM factory)
-- [ ] Phase 2: Simple test agent
+- [x] Phase 2: Simple test agent
 - [ ] Phase 3: Job search agent
 - [ ] Phase 4: API & scheduling
 - [ ] Phase 5: Multi-agent orchestration
