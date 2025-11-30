@@ -2,10 +2,6 @@
 
 This document describes the current architecture of the AI Agents project.
 
-## Current State: First Agent Working
-
-The project is in early development (Phase 2 complete). Core infrastructure and a simple test workflow exist.
-
 ## Terminology
 
 | Term | Definition |
@@ -87,28 +83,51 @@ Match error handling strategy to error type:
 
 **Key insight**: Tools should return error strings, not raise exceptions. The LLM sees the error and can adjust (retry, rephrase, use different tool).
 
-### Tool Design
+### Tool Design for Deep Agents
 
-For local models (Qwen), tool descriptions must be explicit:
+Deep agents use a **two-layer documentation pattern**:
+
+1. **Tool docstring**: Minimal - describes what it does and args (schema only)
+2. **System prompt**: Contains tool usage guidance (when/how to use)
+
+This matches the Deep Agents quickstart pattern and keeps tools focused while giving the agent workflow context.
+
+**Tool Example** (minimal docstring):
 
 ```python
 @tool
-def example_tool(query: str) -> str:
-    """One-line summary of what this tool does.
-
-    Use this tool when the user asks about:
-    - Specific scenario 1
-    - Specific scenario 2
+def web_search(query: str) -> str:
+    """Search the web using Exa neural search.
 
     Args:
-        query: Description of expected input
+        query: Natural language search query
 
     Returns:
-        Description of output format
+        Search results with titles, URLs, and content snippets
     """
+    # Implementation...
 ```
 
-Validation order in tools:
+**System Prompt Example** (contains usage guidance):
+
+```python
+SYSTEM_PROMPT = """You are an expert researcher.
+
+## Tools
+
+### `web_search`
+
+Use this to search the web for information. You can run multiple searches
+to gather comprehensive information on a topic.
+"""
+```
+
+**Why this pattern?**
+- Tools are self-contained and portable (just describe what they do)
+- System prompt provides workflow-specific guidance (when to use tools, multi-tool strategies)
+- Works well with Deep Agents' comprehensive default prompts
+
+**Validation order in tools:**
 1. Check config/preconditions first (cheap, fail fast)
 2. Validate inputs (cheap)
 3. Call external APIs last (expensive)
@@ -126,15 +145,73 @@ from src.core.config import Settings
 my_settings = Settings()
 ```
 
+## Deep Agents
+
+We use `create_deep_agent` as the standard pattern for creating agents. Deep agents extend LangGraph's agent capabilities with built-in tools for complex, autonomous workflows.
+
+### Creating a Deep Agent
+
+```python
+from deepagents import create_deep_agent
+
+agent = create_deep_agent(
+    model=get_llm(),
+    tools=[custom_tool],
+    system_prompt="You are a helpful assistant..."
+)
+```
+
+### Built-in Tools
+
+Deep agents come with built-in tools that enable autonomous operation:
+
+- **write_todos** - Task management for tracking work items
+- **Filesystem tools** - `ls`, `read_file`, `write_file`, `edit_file` for file operations
+
+### Subagent Pattern
+
+For complex tasks requiring delegation, use subagents:
+
+```python
+from deepagents import create_deep_agent
+
+# Define subagent as a dictionary
+RESEARCH_SUBAGENT = {
+    "name": "research",
+    "description": "Searches the web and synthesizes information.",
+    "system_prompt": "You are a research specialist...",
+    "tools": [web_search],
+}
+
+# Main agent delegates to subagent via task() tool
+main_agent = create_deep_agent(
+    model=get_llm(),
+    tools=[get_current_time],
+    subagents=[RESEARCH_SUBAGENT],
+    system_prompt="You coordinate research tasks..."
+)
+```
+
+### Long-term Memory
+
+Deep agents support persistent memory via `CompositeBackend` with path-based routing:
+
+| Path | Storage Type | Use Case |
+|------|--------------|----------|
+| `/memories/` | Persistent | Facts, preferences, learned information |
+| `/workspace/` | Ephemeral | Scratch space, temporary working data |
+
+Memory is automatically managed - agents read/write to paths and the backend routes to appropriate storage.
+
 ## Workflow Structure
 
 Each workflow is a subdirectory containing:
-- `agent.py` - Agent with system prompt via `prompt` parameter
+- `agent.py` - Deep agent with system prompt via `prompt` parameter
 - `tools.py` - Tools specific to that workflow
 
 ```python
 # src/workflows/simple/agent.py
-agent = create_react_agent(
+agent = create_deep_agent(
     model=get_llm(),
     tools=[get_current_time],
     prompt="You are a helpful assistant..."

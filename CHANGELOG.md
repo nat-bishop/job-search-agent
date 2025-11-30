@@ -7,9 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Migrated from `create_react_agent` to `create_deep_agent` as standard pattern
+- Updated documentation to reflect deep agents architecture
+- Tool documentation pattern: minimal tool docstrings, system prompt contains usage guidance
+  - Tool docstrings now only describe what the tool does (schema focus)
+  - System prompts contain when/how to use tools (workflow context)
+  - Matches Deep Agents quickstart pattern for cleaner separation
+
 ### Added
+- Deep agents pattern with built-in tools (write_todos, filesystem operations)
+- Subagent pattern for task delegation
+- Long-term memory support via CompositeBackend with path-based routing
+  - `/memories/` path for persistent storage
+  - `/workspace/` path for ephemeral data
 - Simple workflow (`src/workflows/simple/`)
-  - ReAct agent using `create_react_agent` with system prompt
+  - Deep agent with system prompt
   - `get_current_time` tool - returns current time (no dependencies)
   - `web_search` tool - ready for Exa API (requires API key)
 - Interactive test script (`scripts/test_simple_agent.py`)

@@ -11,7 +11,18 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:python.langchain.com)",
       "WebFetch(domain:reference.langchain.com)",
-      "WebFetch(domain:docs.langchain.com)"
+      "WebFetch(domain:docs.langchain.com)",
+      "Bash(ruff check:*)",
+      "Bash(python -m ruff:*)",
+      "WebFetch(domain:anchorbrowser.io)",
+      "Bash(python scripts/test_deep_agent.py:*)",
+      "WebFetch(domain:langchain-5e9cc07a.mintlify.app)",
+      "WebFetch(domain:blog.langchain.com)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "mcp__docs-langchain__SearchDocsByLangChain",
+      "Bash(.venv/Scripts/pip.exe:*)"
     ],
     "deny": [],
     "ask": []

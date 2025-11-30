@@ -8,6 +8,8 @@ Living document tracking progress on the AI Agents project. High-level to allow 
 
 **Phase 2: First Workflow** - COMPLETE
 
+**Phase 2.5: Deep Agents Adoption** - IN PROGRESS
+
 ---
 
 ## Phase 1: Foundation
@@ -62,6 +64,32 @@ For now, testing uses only `get_current_time` (no API key required).
 - [x] Agent loops: tool → observe → decide
 - [x] Agent knows when to stop
 - [ ] Test with both local and API models
+
+---
+
+## Phase 2.5: Deep Agents Adoption
+
+Goal: Migrate to deep agents framework for subagent support and context management, using local models.
+
+### Setup
+- [x] Add `deepagents` to pyproject.toml
+- [ ] Test deep agents with Qwen 2.5 via Ollama
+
+### Migration
+- [x] Convert simple workflow from `create_react_agent` to `create_deep_agent`
+- [ ] Verify built-in tools (write_todos, filesystem) work with local model
+- [ ] Test subagent delegation with local model
+
+### Research Subagent
+- [x] Add research subagent to simple workflow
+- [x] Configure long-term memory with CompositeBackend
+- [x] Configure for context isolation (results summarized, not raw)
+- [ ] Validate with web_search tool
+
+### Documentation
+- [x] Update ARCHITECTURE.md with deep agents patterns
+- [x] Update to two-layer tool documentation pattern (minimal docstrings, system prompt has usage)
+- [x] Add deep agents resources to Resources section
 
 ---
 
@@ -160,6 +188,9 @@ Not planned yet, add as needed:
 | Safe Playwright commands | Security - no arbitrary browser access | 2024-11-29 |
 | Delay service layer | Don't abstract until there's duplication | 2024-11-29 |
 | Workflows over flat agents | Colocate agents + tools by domain | 2024-11-29 |
+| Deep agents for subagents | Context isolation, built-in planning/filesystem tools | 2024-11-30 |
+| Local-first for deep agents | Privacy, cost; cloud fallback if needed | 2024-11-30 |
+| Two-layer tool docs | Minimal tool docstrings, system prompt has usage guidance | 2024-11-30 |
 
 ### Lessons Learned
 
@@ -180,6 +211,10 @@ Not planned yet, add as needed:
 - [LangGraph Docs](https://docs.langchain.com/oss/python/langgraph/overview)
 - [LangGraph ReAct Template](https://github.com/langchain-ai/react-agent)
 - [LangGraph Supervisor](https://github.com/langchain-ai/langgraph-supervisor-py)
+- [Deep Agents Docs](https://docs.langchain.com/oss/python/deepagents/overview)
+- [Deep Agents GitHub](https://github.com/langchain-ai/deepagents)
+- [Deep Agents Subagents](https://docs.langchain.com/oss/python/deepagents/subagents)
+- [Deep Agents Long-Term Memory](https://docs.langchain.com/oss/python/deepagents/long-term-memory)
 - [Qwen 2.5 Tool Calling](https://huggingface.co/Qwen/Qwen2.5-72B-Instruct)
 - [Exa Python SDK](https://github.com/exa-labs/exa-py)
 - [Docker: Local LLM Tool Calling](https://www.docker.com/blog/local-llm-tool-calling-a-practical-evaluation/)

@@ -1,64 +1,140 @@
 # Agent Development Guide
 
-**Status**: No agents exist yet. This guide will be expanded as we build agents.
+## Current Approach
 
-## Current State
+Agents are built using **LangGraph's Deep Agents** with the **create_deep_agent** function.
 
-The AI Agents project has completed Phase 1 (foundation) but has not yet implemented any agents. The core LLM factory is ready, but agent development starts in Phase 2.
+### Deep Agents Pattern
 
-See [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md) for the development roadmap.
+Deep agents extend LangGraph's agent capabilities with:
 
-## Planned Approach
+1. **Built-in Tools**: write_todos, filesystem (ls, read_file, write_file, edit_file)
+2. **Subagent Delegation**: Delegate complex tasks to specialized subagents
+3. **Long-term Memory**: Persistent storage via CompositeBackend with path routing
+4. **System Prompts**: Rich context provided via `system_prompt` parameter
 
-Agents will be built using **LangGraph** with the **ReAct pattern**.
-
-### LangGraph's `create_react_agent`
-
-The planned architecture uses LangGraph's `create_react_agent` function, which implements:
-
-1. **Reasoning**: Agent thinks about what to do next
-2. **Action**: Agent calls a tool if needed
-3. **Observation**: Agent sees the tool result
-4. **Loop**: Repeat until task is complete
-
-This pattern enables agents to:
-- Break down complex tasks into steps
-- Use tools to interact with the world
-- Self-correct based on observations
-- Know when to stop
-
-### Example (Future)
-
-Once implemented, agents will look something like this:
+### Creating an Agent
 
 ```python
-from langgraph.prebuilt import create_react_agent
+from deepagents import create_deep_agent
 from src.core.llm import get_agent_llm
-from src.tools.web_search import web_search_tool
+from src.workflows.simple.tools import get_current_time, web_search
 
-# Create agent with tools
-agent = create_react_agent(
+# System prompt with tool usage guidance
+SYSTEM_PROMPT = """You are a helpful assistant.
+
+## Tools
+
+### `get_current_time`
+Use this when the user asks about the current time or date.
+
+### `web_search`
+Use this to search the web for current events and information.
+"""
+
+# Create agent
+agent = create_deep_agent(
     model=get_agent_llm(),
-    tools=[web_search_tool],
+    tools=[get_current_time, web_search],
+    system_prompt=SYSTEM_PROMPT,
 )
 
 # Run agent
-result = agent.invoke({
-    "messages": [("user", "Find recent news about AI agents")]
-})
+result = agent.invoke({"messages": [("user", "What time is it?")]})
 ```
 
-## Next Steps
+### Tool Design Pattern
 
-**Phase 2** will implement the first simple test agent to validate:
-- Tool calling works with local models
-- ReAct loop executes correctly
-- Agent can reason and self-correct
+Tools use a **two-layer documentation pattern**:
 
-Check back after Phase 2 for concrete examples and patterns.
+1. **Tool docstring**: Minimal - what it does, args, returns (schema only)
+2. **System prompt**: Tool usage guidance (when/how to use)
+
+**Tool Example**:
+```python
+@tool
+def web_search(query: str) -> str:
+    """Search the web using Exa neural search.
+
+    Args:
+        query: Natural language search query
+
+    Returns:
+        Search results with titles, URLs, and content snippets
+    """
+    # Implementation...
+```
+
+**System Prompt Example**:
+```python
+SYSTEM_PROMPT = """
+## Tools
+
+### `web_search`
+Use this to search the web for information. You can run multiple searches
+to gather comprehensive information on a topic.
+"""
+```
+
+**Why this pattern?**
+- Tools are portable and self-contained
+- System prompt provides workflow-specific context
+- Matches Deep Agents quickstart pattern
+
+### Subagents
+
+For complex delegation, define subagents:
+
+```python
+RESEARCH_SUBAGENT = {
+    "name": "research",
+    "description": "Searches the web and synthesizes information.",
+    "system_prompt": "You are a research specialist...",
+    "tools": [web_search],
+}
+
+agent = create_deep_agent(
+    model=get_agent_llm(),
+    tools=[get_current_time],
+    subagents=[RESEARCH_SUBAGENT],
+    system_prompt=SYSTEM_PROMPT,
+)
+```
+
+The parent agent delegates to subagents using the built-in `task()` tool.
+
+### Long-term Memory
+
+Configure persistent storage with `CompositeBackend`:
+
+```python
+from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
+
+def make_backend(runtime):
+    """Route /memories/ to persistent storage."""
+    return CompositeBackend(
+        default=StateBackend(runtime),
+        routes={"/memories/": StoreBackend(runtime)},
+    )
+
+agent = create_deep_agent(
+    model=get_agent_llm(),
+    tools=[...],
+    system_prompt=SYSTEM_PROMPT,
+    store=InMemoryStore(),
+    backend=make_backend,
+)
+```
+
+Agents read/write to paths and the backend routes automatically:
+- `/memories/` - Persistent (survives sessions)
+- `/workspace/` - Ephemeral (cleared after session)
 
 ## Resources
 
+- [Deep Agents Documentation](https://docs.langchain.com/oss/python/deepagents/overview)
+- [Deep Agents Quickstart](https://docs.langchain.com/oss/python/deepagents/quickstart)
+- [Deep Agents Subagents](https://docs.langchain.com/oss/python/deepagents/subagents)
+- [Deep Agents Long-Term Memory](https://docs.langchain.com/oss/python/deepagents/long-term-memory)
 - [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [LangGraph ReAct Pattern](https://langchain-ai.github.io/langgraph/tutorials/introduction/)
 - [Qwen 2.5 Tool Calling](https://huggingface.co/Qwen/Qwen2.5-72B-Instruct)

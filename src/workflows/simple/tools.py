@@ -11,11 +11,6 @@ from src.core.config import settings
 def get_current_time() -> str:
     """Get the current date and time.
 
-    Use this tool when the user asks about:
-    - The current time
-    - Today's date
-    - What day it is
-
     Returns:
         Current datetime formatted as 'YYYY-MM-DD HH:MM:SS'
     """
@@ -24,18 +19,13 @@ def get_current_time() -> str:
 
 @tool
 def web_search(query: str) -> str:
-    """Search the web for information using Exa.
-
-    Use this tool when the user asks about:
-    - Current events or news
-    - Information you don't know
-    - Facts that may have changed since your training
+    """Search the web using Exa neural search.
 
     Args:
-        query: The search query (natural language works best)
+        query: Natural language search query
 
     Returns:
-        Search results with titles, URLs, and snippets
+        Search results with titles, URLs, and content snippets
     """
     # User-fixable: missing config
     if not settings.exa_api_key:
@@ -48,7 +38,7 @@ def web_search(query: str) -> str:
         exa = Exa(api_key=settings.exa_api_key)
         results = exa.search_and_contents(
             query,
-            num_results=3,
+            num_results=10,
             text={"max_characters": 500},
         )
     except Exception as e:
