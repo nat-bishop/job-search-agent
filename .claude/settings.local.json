@@ -22,7 +22,8 @@
       "Bash(source .venv/Scripts/activate)",
       "Bash(.venv/Scripts/python.exe:*)",
       "mcp__docs-langchain__SearchDocsByLangChain",
-      "Bash(.venv/Scripts/pip.exe:*)"
+      "Bash(.venv/Scripts/pip.exe:*)",
+      "Bash(\"C:\\Users\\Nat\\AppData\\Local\\Programs\\Ollama\\ollama.exe\" list)"
     ],
     "deny": [],
     "ask": []
