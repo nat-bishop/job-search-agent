@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Langfuse tracing integration for LLM observability
+  - `src/core/tracing.py` with `get_langfuse_handler()` function
+  - Automatic dotenv loading before Langfuse import (required for env var reading)
+  - Self-hosted Langfuse at sibling repo `../langfuse`
+- Docker containerization for Ollama with GPU passthrough (Phase 2.7)
+  - `docker-compose.yml` with Nvidia GPU support
+  - Persistent model storage in `.ollama-data/` volume (65GB+ models)
+  - Prevents GPU OOM issues when running concurrent agents
+- Architecture foundation for Phase 4 Redis queue + worker pattern
+  - Container enables process isolation for multi-agent concurrency
+  - Optional but recommended for production workloads
+
+### Changed
+- Primary model updated from `qwen2.5:72b-instruct-q8_0` to `gpt-oss:120b`
+  - gpt-oss:120b is newer (Aug 2025 vs Mar 2024)
+  - Better for agentic tasks with improved reasoning
+  - More efficient: 5.1B active parameters vs 22B (MoE architecture)
+- `.gitignore` updated to exclude `.ollama-data/` volume directory
+
 ## [0.2.0] - 2025-11-30
 
 ### Changed

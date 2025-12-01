@@ -16,7 +16,8 @@ This document describes the current architecture of the AI Agents project.
 src/
 ├── core/           # Shared infrastructure
 │   ├── config.py   # Pydantic settings from .env
-│   └── llm.py      # LLM factory with provider swapping
+│   ├── llm.py      # LLM factory with provider swapping
+│   └── tracing.py  # Langfuse integration
 ├── workflows/      # Agent workflows by domain
 │   └── simple/     # Single-agent test workflow
 ├── services/       # External service integrations (empty)
@@ -224,7 +225,118 @@ agent = create_deep_agent(
 - LangGraph (agent framework)
 - LangChain Core (LLM abstraction)
 - Pydantic Settings (configuration)
-- Ollama (local LLM serving)
+- Ollama (local LLM serving, containerized)
+- Docker (optional, for Ollama with GPU passthrough)
+
+## Infrastructure
+
+### Containerized Ollama (Phase 2.7)
+
+Ollama runs in a Docker container with Nvidia GPU passthrough:
+
+**Architecture:**
+```
+[Python App (host)] --> http://localhost:11434 --> [Ollama Container (GPU)] --> [.ollama-data/ volume]
+```
+
+**Benefits:**
+- **Process isolation**: Prevents GPU OOM when running multiple agents concurrently
+- **Reproducible environment**: Consistent Ollama version across machines
+- **Foundation for Phase 4**: Enables Redis queue + worker pattern for scheduling
+
+**Trade-offs:**
+- 1-5% performance overhead vs native Ollama
+- Requires Docker and nvidia-container-toolkit
+
+**Model Storage:**
+- Models persist in `.ollama-data/` volume (65GB+ for gpt-oss:120b)
+- Volume survives container restarts
+- Excluded from git via `.gitignore`
+
+**Setup:**
+```bash
+docker compose up -d
+docker compose exec ollama ollama pull gpt-oss:120b
+```
+
+Python code is unchanged - still connects to `localhost:11434`.
+
+### Model Selection: gpt-oss:120b
+
+Primary model changed from `qwen2.5:72b-instruct-q8_0` to `gpt-oss:120b`:
+
+| Aspect | gpt-oss:120b | qwen2.5:72b-instruct-q8_0 |
+|--------|--------------|---------------------------|
+| Release | Aug 2025 | Mar 2024 |
+| Architecture | MoE (5.1B active) | Dense (22B all-active) |
+| VRAM | ~60GB | ~75GB |
+| Strengths | Agentic tasks, reasoning | General knowledge |
+
+**Why gpt-oss:120b?**
+- Newer model with improvements for agentic workflows
+- More efficient: 5.1B active parameters vs 22B
+- Better suited for tool-calling patterns in Deep Agents
+
+## Observability
+
+### Langfuse Setup (Self-Hosted)
+
+Langfuse runs as a sibling repo for LLM tracing and observability.
+
+**Initial Setup:**
+```bash
+cd C:\Users\Nat\Documents\dev
+git clone https://github.com/langfuse/langfuse.git
+cd langfuse
+docker compose up
+```
+
+**First Run:**
+1. Open http://localhost:3000
+2. Create account and project
+3. Copy API keys to `.env` in ai-agents project:
+   ```bash
+   LANGFUSE_SECRET_KEY=sk-lf-...
+   LANGFUSE_PUBLIC_KEY=pk-lf-...
+   LANGFUSE_HOST=http://localhost:3000
+   ```
+
+**Important:** Environment variables must be formatted exactly as shown (no spaces around `=`, no quotes around values). Use `LANGFUSE_HOST` not `LANGFUSE_BASE_URL`.
+
+**Daily Usage:**
+```bash
+cd ../langfuse && docker compose up -d   # Start in background
+cd ../langfuse && docker compose down    # Stop
+```
+
+**Upgrade:**
+```bash
+cd ../langfuse && git pull && docker compose up --pull always
+```
+
+### What Gets Traced
+
+The LangChain CallbackHandler automatically captures:
+- LLM calls (prompts, responses, token usage, latency)
+- Tool invocations with inputs/outputs
+- Agent decisions and flow
+- Chain executions
+
+### Adding Tracing to Code
+
+The tracing module automatically loads `.env` before importing Langfuse (required because Langfuse reads environment variables at import time).
+
+```python
+from src.core.tracing import get_langfuse_handler
+
+handler = get_langfuse_handler()
+response = agent.invoke(
+    {"messages": messages},
+    config={"callbacks": [handler]}
+)
+```
+
+View traces at: http://localhost:3000
 
 ## Design Principles
 

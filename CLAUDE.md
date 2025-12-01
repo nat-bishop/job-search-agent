@@ -32,6 +32,7 @@ Multi-agent workflows add:
 
 - `src/core/config.py` → `settings` object, loads from `.env`
 - `src/core/llm.py` → `get_llm()` factory, supports local/anthropic/openai
+- `src/core/tracing.py` → `get_langfuse_handler()` for LLM tracing
 
 ## Environment Setup
 
@@ -53,9 +54,14 @@ pip install -e ".[dev]"
 ## Commands
 
 ```bash
-pip install -e ".[dev]"    # Install/update deps
-ruff check src/            # Lint
-mypy src/                  # Type check
+pip install -e ".[dev]"       # Install/update deps
+ruff check src/               # Lint
+mypy src/                     # Type check
+
+# Docker for running olama local model
+docker compose up -d          # Start Ollama container
+docker compose down           # Stop container
+docker compose exec ollama ollama pull gpt-oss:120b  # Pull model
 ```
 
 ## Principles
@@ -84,8 +90,42 @@ mypy src/                  # Type check
 - Example: `web_search` docstring says "Search web using Exa", system prompt says "Use for current events and research"
 
 **Local models:**
-- Using `qwen2.5:72b-instruct-q8_0` via Ollama
+- Primary model: `gpt-oss:120b` via Ollama (containerized)
+- Ollama runs in Docker container with GPU passthrough
+- Models persist in `.ollama-data/` volume (65GB+)
+- Python app runs on host, connects to localhost:11434
 - Handle tool call failures gracefully
+
+## Observability
+
+Uses [Langfuse](https://langfuse.com) for LLM tracing. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#observability) for setup.
+
+### Adding Tracing to New Code
+
+```python
+from src.core.tracing import get_langfuse_handler
+
+handler = get_langfuse_handler()
+response = agent.invoke(
+    {"messages": messages},
+    config={"callbacks": [handler]}
+)
+```
+
+Note: `tracing.py` loads `.env` via dotenv before importing Langfuse (required - Langfuse reads env vars at import time).
+
+View traces: http://localhost:3000
+
+## Windows Console Encoding
+
+When printing LLM output to Windows console, handle unicode characters:
+
+```python
+# Avoid: print(response.content)  # May fail with charmap codec error
+# Use:
+content = response.content.encode('ascii', 'replace').decode('ascii')
+print(content)
+```
 
 ## Anti-Patterns to Avoid
 

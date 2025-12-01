@@ -29,6 +29,7 @@ dependencies = [
     "fastapi>=0.123.0",
     "uvicorn[standard]>=0.38.0",
     "apscheduler>=3.11.0",
+    "redis>=5.2.0",  # Queue for Phase 4 concurrency control
 
     # Web & Search
     "playwright>=1.49.0",
@@ -45,6 +46,12 @@ dependencies = [
 
     # HTTP
     "httpx>=0.28.0",
+
+    # Docker SDK (for container management in Phase 4)
+    "docker>=7.1.0",
+
+    # Observability
+    "langfuse>=3.0.0",
 ]
 
 [project.optional-dependencies]

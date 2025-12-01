@@ -9,6 +9,7 @@ Run:
     python scripts/test_simple_workflow.py
 """
 
+from src.core.tracing import get_langfuse_handler
 from src.workflows.simple.agent import create_simple_agent
 
 
@@ -19,10 +20,12 @@ def test_time_query():
     print("=" * 60)
 
     agent = create_simple_agent()
+    langfuse_handler = get_langfuse_handler()
 
-    result = agent.invoke({
-        "messages": [{"role": "user", "content": "What time is it?"}]
-    })
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What time is it?"}]},
+        config={"callbacks": [langfuse_handler]},
+    )
 
     # Print all messages to see tool calls
     print("\nConversation:")
@@ -65,10 +68,12 @@ def test_simple_response():
     print("=" * 60)
 
     agent = create_simple_agent()
+    langfuse_handler = get_langfuse_handler()
 
-    result = agent.invoke({
-        "messages": [{"role": "user", "content": "Say hello!"}]
-    })
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "Say hello!"}]},
+        config={"callbacks": [langfuse_handler]},
+    )
 
     last_message = result["messages"][-1]
     try:
@@ -98,13 +103,15 @@ def test_research_delegation():
         return None
 
     agent = create_simple_agent()
+    langfuse_handler = get_langfuse_handler()
 
     print("\nAsking: What are the latest developments in AI?")
     print("(This may take 30-60 seconds with the 120B model...)\n")
 
-    result = agent.invoke({
-        "messages": [{"role": "user", "content": "What are the latest developments in AI? Keep it brief."}]
-    })
+    result = agent.invoke(
+        {"messages": [{"role": "user", "content": "What are the latest developments in AI? Keep it brief."}]},
+        config={"callbacks": [langfuse_handler]},
+    )
 
     # Print conversation flow
     print("\nConversation:")

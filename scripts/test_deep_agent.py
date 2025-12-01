@@ -12,6 +12,7 @@ Run:
 """
 
 from src.core.llm import get_agent_llm
+from src.core.tracing import get_langfuse_handler
 
 
 def main():
@@ -56,12 +57,16 @@ def main():
     # Step 4: Test basic invocation (planning task)
     print("\n4. Testing agent invocation...")
     print("   Prompt: 'Plan how to research job boards'")
+    langfuse_handler = get_langfuse_handler()
     try:
-        result = agent.invoke({
-            "messages": [{"role": "user", "content": "Plan how to research job boards"}]
-        })
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": "Plan how to research job boards"}]},
+            config={"callbacks": [langfuse_handler]},
+        )
         last_message = result["messages"][-1]
-        print(f"\n   Response: {last_message.content[:500]}...")
+        # Handle Windows console encoding issues
+        content = last_message.content[:500].encode('ascii', 'replace').decode('ascii')
+        print(f"\n   Response: {content}...")
         print("\n   SUCCESS: Agent responded")
     except Exception as e:
         print(f"   FAILED: {e}")
@@ -71,9 +76,10 @@ def main():
     print("\n5. Testing write_todos tool...")
     print("   Prompt: 'Create a todo list for learning Python'")
     try:
-        result = agent.invoke({
-            "messages": [{"role": "user", "content": "Create a todo list with 3 items for learning Python. Use the write_todos tool."}]
-        })
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": "Create a todo list with 3 items for learning Python. Use the write_todos tool."}]},
+            config={"callbacks": [langfuse_handler]},
+        )
 
         # Check if any tool was called
         tool_calls = [m for m in result["messages"] if hasattr(m, "tool_calls") and m.tool_calls]
@@ -84,7 +90,9 @@ def main():
             print("   WARNING: No tool was called (model may need larger size)")
 
         last_message = result["messages"][-1]
-        print(f"\n   Final response: {last_message.content[:300]}...")
+        # Handle Windows console encoding issues
+        content = last_message.content[:300].encode('ascii', 'replace').decode('ascii')
+        print(f"\n   Final response: {content}...")
     except Exception as e:
         print(f"   FAILED: {e}")
         return False
@@ -100,6 +108,7 @@ def main():
 def interactive_mode():
     """Run interactive session with deep agent."""
     from deepagents import create_deep_agent
+
     from src.core.llm import get_agent_llm
 
     print("\nDeep Agent Interactive Mode")
@@ -112,6 +121,7 @@ def interactive_mode():
         tools=[],
         system_prompt="You are a helpful assistant that can plan tasks and manage files.",
     )
+    langfuse_handler = get_langfuse_handler()
 
     while True:
         try:
@@ -126,7 +136,10 @@ def interactive_mode():
             continue
 
         try:
-            result = agent.invoke({"messages": [{"role": "user", "content": user_input}]})
+            result = agent.invoke(
+                {"messages": [{"role": "user", "content": user_input}]},
+                config={"callbacks": [langfuse_handler]},
+            )
             last_message = result["messages"][-1]
             print(f"Agent: {last_message.content}\n")
         except Exception as e:

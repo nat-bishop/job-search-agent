@@ -100,3 +100,6 @@ Thumbs.db
 *.key
 credentials.json
 token.json
+
+# Docker / Ollama data
+.ollama-data/

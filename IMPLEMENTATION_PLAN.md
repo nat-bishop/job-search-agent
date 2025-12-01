@@ -10,6 +10,8 @@ Living document tracking progress on the AI Agents project. High-level to allow 
 
 **Phase 2.5: Deep Agents Adoption** - IN PROGRESS
 
+**Phase 2.7: Containerization** - COMPLETE
+
 ---
 
 ## Phase 1: Foundation
@@ -73,23 +75,47 @@ Goal: Migrate to deep agents framework for subagent support and context manageme
 
 ### Setup
 - [x] Add `deepagents` to pyproject.toml
-- [ ] Test deep agents with Qwen 2.5 via Ollama
+- [x] Test deep agents with local model via Ollama
 
 ### Migration
 - [x] Convert simple workflow from `create_react_agent` to `create_deep_agent`
 - [ ] Verify built-in tools (write_todos, filesystem) work with local model
-- [ ] Test subagent delegation with local model
+- [x] Test subagent delegation with local model
+- [ ] Test memory stored long term (currently using InMemoryStore)
 
 ### Research Subagent
 - [x] Add research subagent to simple workflow
 - [x] Configure long-term memory with CompositeBackend
 - [x] Configure for context isolation (results summarized, not raw)
-- [ ] Validate with web_search tool
+- [x] Validate with web_search tool
 
 ### Documentation
 - [x] Update ARCHITECTURE.md with deep agents patterns
 - [x] Update to two-layer tool documentation pattern (minimal docstrings, system prompt has usage)
 - [x] Add deep agents resources to Resources section
+
+---
+
+## Phase 2.7: Containerization
+
+Goal: Containerize Ollama with GPU access to prepare for Phase 4 concurrency requirements.
+
+### Container Setup
+- [x] docker-compose.yml - Ollama service with GPU passthrough
+- [x] .gitignore - Exclude .ollama-data/ directory
+- [x] Migrate gpt-oss:120b model to .ollama-data/
+- [x] Start and verify Ollama container
+- [x] Test Python app with containerized Ollama
+
+### Infrastructure
+- [x] WSL2 + Docker Desktop configuration
+- [x] NVIDIA Container Toolkit setup (Docker Desktop handles this)
+- [x] GPU passthrough verification
+
+### Documentation
+- [x] Update README.md with Docker setup instructions
+- [x] Update CLAUDE.md with containerized architecture
+- [x] Add troubleshooting guide for common Docker issues (deferred - not needed yet)
 
 ---
 
@@ -119,22 +145,45 @@ Goal: Build the nursing job search workflow with safe Playwright commands.
 
 ## Phase 4: API & Scheduling
 
-Goal: Run agents on schedules, expose via API.
+Goal: Run agents on schedules with proper concurrency control to prevent GPU resource conflicts.
+
+### Concurrency Architecture
+
+**Problem:** With 96GB VRAM and 65-77GB models, concurrent workflows cause GPU OOM errors.
+
+**Solution:** Redis queue + worker pattern for serialized Ollama access.
+
+```yaml
+services:
+  ollama:      # Isolated GPU access (containerized)
+  scheduler:   # APScheduler pushes jobs to queue
+  redis:       # Job queue (serializes GPU requests)
+  worker:      # Pulls from queue, runs one agent at a time
+```
 
 ### FastAPI Server
-- [ ] src/api/main.py - App entry point
-- [ ] src/api/routes/agents.py - Run/status endpoints
+- [ ] src/api/main.py - App entry point with scheduler
+- [ ] src/api/routes/agents.py - Trigger/status endpoints
 - [ ] src/api/routes/jobs.py - View found jobs
 - [ ] src/api/dependencies.py - Compiled graphs, services
 
-### Scheduling
+### Scheduling & Queue
+- [ ] Add Redis to docker-compose.yml
 - [ ] src/core/scheduler.py - APScheduler integration
+- [ ] src/core/queue.py - Redis queue client wrapper
+- [ ] src/core/worker.py - Worker process for agent execution
 - [ ] config/schedules.yaml - Cron schedules per agent
+
+### Resource Management
+- [ ] GPU access serialization via queue
+- [ ] Container resource limits (memory, CPU)
+- [ ] Worker pool configuration (start with 1 worker = serial execution)
 
 ### Monitoring
 - [ ] src/core/monitoring.py - Run tracking, metrics
 - [ ] SQLite for run history
 - [ ] Structured logging with run IDs
+- [ ] Queue depth/status endpoint
 
 ---
 
@@ -191,6 +240,9 @@ Not planned yet, add as needed:
 | Deep agents for subagents | Context isolation, built-in planning/filesystem tools | 2024-11-30 |
 | Local-first for deep agents | Privacy, cost; cloud fallback if needed | 2024-11-30 |
 | Two-layer tool docs | Minimal tool docstrings, system prompt has usage guidance | 2024-11-30 |
+| Containerize Ollama | Prepare for Phase 4 concurrency, GPU resource isolation | 2024-11-30 |
+| Redis queue for Phase 4 | Prevent GPU OOM with 65-77GB models running concurrently | 2024-11-30 |
+| gpt-oss:120b as primary | Newer (Aug 2025), better for agents, 5.1B active vs 22B | 2024-11-30 |
 
 ### Lessons Learned
 
