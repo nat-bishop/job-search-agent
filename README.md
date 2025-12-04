@@ -4,21 +4,23 @@ Personal AI agent system for automating tasks like job searching and research.
 
 Built with [LangGraph Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview), designed to run on local models.
 
-## Status: First Agent Working
+## Status: Job Search Agent
 
-This project is in early development. Current state:
-- Core infrastructure (config, LLM factory)
-- Simple test agent with tool calling (validated with local Qwen 2.5)
+Current workflow: **Nursing job search** - finds new grad RN positions in the Bay Area.
+
+Features:
+- Deep agent with research subagent (Exa web search)
+- Persistent memory across runs (PostgresStore)
+- Tracks seen jobs to report only NEW findings
 
 ## Quick Start
 
 ```bash
-# After setup (below), run the test agent
-python scripts/test_simple_agent.py
+# After setup (below), start Docker services
+docker compose up -d
 
-# Try these prompts:
-# > What time is it?
-# > Hello!
+# Run the job search
+python scripts/run_job_search.py
 ```
 
 ## Prerequisites
@@ -86,15 +88,18 @@ cp .env.example .env
 
 ```
 src/
-├── workflows/  # Agent workflows by domain
-│   └── simple/ # Test agent (get_current_time, web_search tools)
-├── core/       # Config and LLM factory
+├── workflows/      # Agent workflows by domain
+│   └── job_search/ # Nursing job search (main workflow)
+│       ├── agent.py    # Deep agent + research subagent
+│       └── tools.py    # web_search (Exa)
+├── core/           # Config and LLM factory
 │   ├── config.py   # Settings from .env
-│   └── llm.py      # get_llm() - supports Ollama, Anthropic, OpenAI
-├── services/   # External integrations (future)
-└── api/        # FastAPI server (future)
+│   ├── llm.py      # get_llm() - supports Ollama, Anthropic, OpenAI
+│   └── tracing.py  # Langfuse integration
+├── services/       # External integrations (future)
+└── api/            # FastAPI server (future)
 scripts/
-└── test_simple_agent.py  # Interactive CLI for testing
+└── run_job_search.py  # Entry point for job search workflow
 ```
 
 ## Configuration
@@ -104,17 +109,21 @@ Set in `.env`:
 LLM_PROVIDER=local          # or "anthropic", "openai"
 LOCAL_MODEL=gpt-oss:120b    # Ollama model name
 OLLAMA_URL=http://localhost:11434
+
+# Required for job search workflow
+EXA_API_KEY=your-key        # Exa web search API
+DATABASE_URL=postgresql://langraph:langraph@localhost:5432/langraph
 ```
 
-Python app connects to `localhost:11434` whether Ollama runs in Docker or natively.
+Python app connects to `localhost:11434` (Ollama) and `localhost:5432` (PostgreSQL).
 
 ## Roadmap
 
 See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed progress.
 
 - [x] Phase 1: Foundation (config, LLM factory)
-- [x] Phase 2: Simple test agent
-- [ ] Phase 3: Job search agent
+- [x] Phase 2: Deep agent pattern
+- [x] Phase 3: Job search workflow (with persistent memory)
 - [ ] Phase 4: API & scheduling
 - [ ] Phase 5: Multi-agent orchestration
 

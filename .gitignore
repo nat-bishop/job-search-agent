@@ -78,12 +78,10 @@ dmypy.json
 # Jupyter
 .ipynb_checkpoints
 
-# Local data
-data/*.db
-data/*.sqlite
-data/*.json
+# Local data (agent memory files)
+data/
 
-# Logs
+# Logs (job search output)
 logs/
 *.log
 
@@ -103,3 +101,4 @@ token.json
 
 # Docker / Ollama data
 .ollama-data/
+.postgres-data/

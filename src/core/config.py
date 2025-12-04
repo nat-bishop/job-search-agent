@@ -41,5 +41,8 @@ class Settings(BaseSettings):
     # External APIs (add as needed)
     exa_api_key: str | None = Field(default=None)
 
+    # Database (PostgreSQL for LangGraph Store)
+    database_url: str | None = Field(default=None)
+
 
 settings = Settings()

@@ -58,10 +58,13 @@ pip install -e ".[dev]"       # Install/update deps
 ruff check src/               # Lint
 mypy src/                     # Type check
 
-# Docker for running olama local model
-docker compose up -d          # Start Ollama container
-docker compose down           # Stop container
+# Docker services (Ollama + PostgreSQL)
+docker compose up -d          # Start all containers
+docker compose down           # Stop containers
 docker compose exec ollama ollama pull gpt-oss:120b  # Pull model
+
+# Run job search workflow
+python scripts/run_job_search.py
 ```
 
 ## Principles
@@ -74,13 +77,12 @@ docker compose exec ollama ollama pull gpt-oss:120b  # Pull model
 
 **Deep agents:**
 - Use `create_deep_agent` as the standard pattern
-- System prompt via `prompt` parameter
+- System prompt via `system_prompt` parameter
 - Tools are colocated with their workflow
 - Use subagents for delegation (e.g., research subagent)
-- Built-in tools for Langgraph deep agents: write_todos, filesystem (ls, read_file, write_file, edit_file)
-- Long-term memory via CompositeBackend (path routing)
+- Built-in tools: write_todos, filesystem (ls, read_file, write_file, edit_file)
+- Long-term memory via CompositeBackend + PostgresStore (path routing to `/memories/`)
 - Tools return error strings for LLM-recoverable failures (not exceptions)
-- Add service layer only when there's actual duplication
 - See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#deep-agents) for detailed patterns
 
 **Tool design pattern:**
@@ -115,6 +117,28 @@ response = agent.invoke(
 Note: `tracing.py` loads `.env` via dotenv before importing Langfuse (required - Langfuse reads env vars at import time).
 
 View traces: http://localhost:3000
+
+## Job Search Workflow
+
+The main workflow finds new grad RN jobs in the Bay Area:
+
+```bash
+# Prerequisites: Docker services running
+docker compose up -d
+
+# Run the job search
+python scripts/run_job_search.py
+```
+
+**Architecture:**
+- Main agent delegates to `research` subagent for web searches (Exa API)
+- Persistent memory in `/memories/` survives across runs (PostgresStore)
+- Agent tracks seen jobs to report only NEW findings
+
+**Key files:**
+- `src/workflows/job_search/agent.py` - Main agent + research subagent
+- `src/workflows/job_search/tools.py` - web_search tool (Exa)
+- `scripts/run_job_search.py` - Entry point
 
 ## Windows Console Encoding
 
