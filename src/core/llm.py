@@ -49,62 +49,36 @@ def get_llm(
 
     if provider == LLMProvider.LOCAL:
         return _get_ollama_llm(temperature=temperature, **kwargs)
-    elif provider == LLMProvider.ANTHROPIC:
-        return _get_anthropic_llm(temperature=temperature, **kwargs)
-    elif provider == LLMProvider.OPENAI:
-        return _get_openai_llm(temperature=temperature, **kwargs)
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
 
 
 def _get_ollama_llm(temperature: float = 0.0, **kwargs) -> BaseChatModel:
-    """Get Ollama (local) LLM."""
-    from langchain_ollama import ChatOllama
+    """Get Ollama (local) LLM via OpenAI-compatible endpoint.
 
-    return ChatOllama(
-        model=settings.local_model,
-        base_url=settings.ollama_url,
-        temperature=temperature,
-        # Enable tool calling format for Qwen/Llama models
-        format="json" if kwargs.pop("json_mode", False) else None,
-        **kwargs,
-    )
-
-
-def _get_anthropic_llm(temperature: float = 0.0, **kwargs) -> BaseChatModel:
-    """Get Anthropic LLM."""
-    if not settings.anthropic_api_key:
-        raise ValueError(
-            "ANTHROPIC_API_KEY is required when using the Anthropic provider. "
-            "Set it in your .env file."
-        )
-
-    from langchain_anthropic import ChatAnthropic
-
-    return ChatAnthropic(
-        model=settings.anthropic_model,
-        api_key=settings.anthropic_api_key,
-        temperature=temperature,
-        **kwargs,
-    )
-
-
-def _get_openai_llm(temperature: float = 0.0, **kwargs) -> BaseChatModel:
-    """Get OpenAI LLM."""
-    if not settings.openai_api_key:
-        raise ValueError(
-            "OPENAI_API_KEY is required when using the OpenAI provider. "
-            "Set it in your .env file."
-        )
-
+    Uses ChatOpenAI pointed at Ollama's /v1 endpoint instead of ChatOllama.
+    This provides more reliable tool calling because:
+    1. ChatOpenAI's tool handling is more battle-tested
+    2. Ollama's OpenAI-compatible endpoint has better tool message formatting
+    3. Avoids ChatOllama's tool_call_id serialization bugs with Qwen/Llama models
+    """
     from langchain_openai import ChatOpenAI
 
+    # Remove json_mode if present (not supported by ChatOpenAI the same way)
+    kwargs.pop("json_mode", None)
+
+    # Ollama exposes OpenAI-compatible API at /v1
+    base_url = settings.ollama_url.rstrip("/") + "/v1"
+
     return ChatOpenAI(
-        model=settings.openai_model,
-        api_key=settings.openai_api_key,
+        model=settings.local_model,
+        base_url=base_url,
+        api_key="ollama",  # Required by ChatOpenAI but ignored by Ollama
         temperature=temperature,
         **kwargs,
     )
+
+    
 
 
 @lru_cache(maxsize=1)

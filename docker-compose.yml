@@ -21,10 +21,31 @@ services:
     volumes:
       - ./.ollama-data:/root/.ollama
 
-    # Health check
+    # Keep model loaded in VRAM indefinitely (reduces TTFT)
+    environment:
+      - OLLAMA_KEEP_ALIVE=-1
+
+    # Health check - verify Ollama is responding
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD-SHELL", "ollama ps || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/search?q=test&format=json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

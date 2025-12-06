@@ -22,9 +22,11 @@ Provide a complete understanding of how a specific feature works by tracing its 
 - **Deep agents**: `create_deep_agent` with subagents for delegation
 - **Workflows**: Agent + tools colocated by domain (use `Glob` to find `**/agent.py`)
 - **Subagents**: Dictionary-based definitions for task delegation
+- **YAML prompts**: Prompts in `prompts/*.yaml` with variable injection (`{current_date}`)
 - **Long-term memory**: CompositeBackend with path-based routing
 - **Tools**: Functions decorated with `@tool` (may call APIs directly or via services)
 - **LLM**: Provider-agnostic via `get_llm()` factory
+- **Async execution**: `astream()`/`ainvoke()` for async tools
 
 ## Analysis Approach
 

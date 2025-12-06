@@ -18,6 +18,7 @@ dependencies = [
     # LangGraph & LangChain (Nov 2025 - LangChain 1.0!)
     "langgraph>=1.0.3,<1.0.4",  # 1.0.4 has breaking change with deepagents
     "langchain-core>=1.1.0",
+    "langchain-community>=0.3.0",  # SearxSearchWrapper for web search
     "langchain-anthropic>=1.2.0",
     "langchain-openai>=1.1.0",
     "langchain-ollama>=1.0.0",
@@ -31,9 +32,8 @@ dependencies = [
     "apscheduler>=3.11.0",
     "redis>=5.2.0",  # Queue for Phase 4 concurrency control
 
-    # Web & Search
+    # Web & Browser
     "playwright>=1.49.0",
-    "exa-py>=1.8.0",
 
     # Config & Utilities
     "pydantic>=2.12.5",
@@ -48,6 +48,12 @@ dependencies = [
 
     # HTTP
     "httpx>=0.28.0",
+
+    # Web scraping (for fetch_page tool)
+    "html2text>=2024.2.26",
+
+    # Config
+    "PyYAML>=6.0",
 
     # Docker SDK (for container management in Phase 4)
     "docker>=7.1.0",

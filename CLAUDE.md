@@ -16,8 +16,11 @@ Guidance for Claude Code when working in this repository.
 src/
 ├── workflows/  # Agent workflows by domain
 │   └── {name}/
-│       ├── agent.py   # create_deep_agent with prompt
-│       └── tools.py   # Tools specific to this workflow
+│       ├── agent.py     # create_deep_agent with prompt loading
+│       ├── tools.py     # Tools specific to this workflow
+│       └── prompts/     # YAML prompt files
+│           ├── main_agent.yaml
+│           └── {subagent}.yaml
 ├── core/       # config.py, llm.py
 ├── services/   # External integrations (when needed)
 └── api/        # FastAPI (future)
@@ -58,7 +61,7 @@ pip install -e ".[dev]"       # Install/update deps
 ruff check src/               # Lint
 mypy src/                     # Type check
 
-# Docker services (Ollama + PostgreSQL)
+# Docker services (Ollama + SearXNG)
 docker compose up -d          # Start all containers
 docker compose down           # Stop containers
 docker compose exec ollama ollama pull gpt-oss:120b  # Pull model
@@ -89,7 +92,37 @@ python scripts/run_job_search.py
 - Tool docstrings: minimal - describe what it does, args, returns (schema only)
 - System prompt: contains tool usage guidance (when/how to use)
 - This two-layer pattern matches Deep Agents quickstart and keeps tools portable
-- Example: `web_search` docstring says "Search web using Exa", system prompt says "Use for current events and research"
+- Example: `web_search` docstring says "Search the web", system prompt says "Use for current events and research"
+
+**YAML prompts with variable injection:**
+- Store prompts in `prompts/*.yaml` files for easy iteration
+- Use `{current_date}` placeholder - replaced at load time with today's date
+- Load with `load_prompt()` function in agent.py
+- Example YAML:
+  ```yaml
+  system_prompt: |
+    Today's date: {current_date}
+    You are a job search assistant...
+  ```
+
+**Simple task triggers:**
+- Run scripts should use simple task messages: `"Search for new jobs and update your files."`
+- System prompt handles all details (file paths, workflow, formatting)
+- Avoids conflicts between task and system prompt instructions
+- Let the agent follow its system prompt, don't repeat instructions in the task
+
+**Async execution:**
+- If any tool is `async def`, the runner MUST use async methods (`astream`/`ainvoke`)
+- Sync `stream()`/`invoke()` with async tools raises: "StructuredTool does not support sync invocation"
+- Async tools enable parallel execution when LLM calls multiple tools at once
+- Pattern for async runner:
+  ```python
+  async def main():
+      async for event in agent.astream({"messages": [...]}, config={...}):
+          handle_event(event)
+
+  asyncio.run(main())
+  ```
 
 **Local models:**
 - Primary model: `gpt-oss:120b` via Ollama (containerized)
@@ -108,6 +141,15 @@ Uses [Langfuse](https://langfuse.com) for LLM tracing. See [docs/ARCHITECTURE.md
 from src.core.tracing import get_langfuse_handler
 
 handler = get_langfuse_handler()
+
+# Async (use with async tools)
+async for event in agent.astream(
+    {"messages": messages},
+    config={"callbacks": [handler]}
+):
+    handle_event(event)
+
+# Sync (only if all tools are sync)
 response = agent.invoke(
     {"messages": messages},
     config={"callbacks": [handler]}
@@ -131,14 +173,16 @@ python scripts/run_job_search.py
 ```
 
 **Architecture:**
-- Main agent delegates to `research` subagent for web searches (Exa API)
-- Persistent memory in `/memories/` survives across runs (PostgresStore)
+- Main agent delegates to `research` subagent for web searches (SearXNG)
+- Persistent memory in `/memories/` survives across runs (FilesystemBackend)
 - Agent tracks seen jobs to report only NEW findings
+- Prompts stored in YAML with `{current_date}` injection
 
 **Key files:**
-- `src/workflows/job_search/agent.py` - Main agent + research subagent
-- `src/workflows/job_search/tools.py` - web_search tool (Exa)
-- `scripts/run_job_search.py` - Entry point
+- `src/workflows/job_search/agent.py` - Main agent + research subagent, loads YAML prompts
+- `src/workflows/job_search/tools.py` - web_search (SearXNG), fetch_page (Playwright)
+- `src/workflows/job_search/prompts/` - YAML prompt files
+- `scripts/run_job_search.py` - Entry point (simple task trigger)
 
 ## Windows Console Encoding
 
@@ -158,3 +202,5 @@ print(content)
 - Abstracting before there's duplication
 - Flat tools/ directory separate from agents
 - Documenting aspirational features as if they exist
+- Verbose task messages that duplicate system prompt (use simple triggers)
+- Hardcoding prompts in Python (use YAML files for easy iteration)

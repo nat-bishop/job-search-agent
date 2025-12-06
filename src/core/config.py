@@ -10,8 +10,7 @@ class LLMProvider(str, Enum):
     """Supported LLM providers."""
 
     LOCAL = "local"
-    ANTHROPIC = "anthropic"
-    OPENAI = "openai"
+
 
 
 class Settings(BaseSettings):
@@ -30,16 +29,8 @@ class Settings(BaseSettings):
     local_model: str = Field(default="qwen2.5:7b")
     ollama_url: str = Field(default="http://localhost:11434")
 
-    # Anthropic (fallback)
-    anthropic_api_key: str | None = Field(default=None)
-    anthropic_model: str = Field(default="claude-sonnet-4-20250514")
-
-    # OpenAI (fallback)
-    openai_api_key: str | None = Field(default=None)
-    openai_model: str = Field(default="gpt-4-turbo")
-
-    # External APIs (add as needed)
-    exa_api_key: str | None = Field(default=None)
+    # SearXNG (local web search)
+    searxng_host: str = Field(default="http://localhost:8080")
 
     # Database (PostgreSQL for LangGraph Store)
     database_url: str | None = Field(default=None)

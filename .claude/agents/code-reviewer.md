@@ -38,6 +38,8 @@ DO NOT check: code style, formatting, basic type hints (automated tools handle t
    - Subagents: dictionary-based definition with name, description, system_prompt, tools?
    - Long-term memory: CompositeBackend routing (`/memories/` persistent, `/workspace/` ephemeral)?
    - Tools: Properly decorated with `@tool`, return error strings not exceptions?
+   - Prompts: Stored in YAML files (`prompts/*.yaml`), not hardcoded in Python?
+   - Task triggers: Simple messages that let system prompt handle details?
 
 4. **Local Model Considerations**:
    - Tool calling: Are tool descriptions clear enough for Qwen/Llama?

@@ -59,6 +59,19 @@ until curl -s http://localhost:11434/api/tags > /dev/null 2>&1; do
 done
 log "Ollama is ready"
 
+# Wait for SearXNG to be ready
+log "Waiting for SearXNG to be ready..."
+WAITED=0
+until curl -s "http://localhost:8080/search?q=test&format=json" > /dev/null 2>&1; do
+    sleep 2
+    WAITED=$((WAITED + 2))
+    if [[ $WAITED -ge $MAX_WAIT ]]; then
+        log "ERROR: SearXNG did not start within ${MAX_WAIT}s"
+        exit 1
+    fi
+done
+log "SearXNG is ready"
+
 # Activate venv and run workflow
 log "Running job search..."
 source .venv/Scripts/activate
