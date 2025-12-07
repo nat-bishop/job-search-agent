@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint.sh\"",
+            "command": "uv run \"$CLAUDE_PROJECT_DIR/.claude/hooks/lint.py\"",
             "timeout": 30
           }
         ]

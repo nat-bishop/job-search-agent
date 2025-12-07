@@ -65,10 +65,6 @@ dev = [
     "vulture>=2.14",
 ]
 
-vllm = [
-    "vllm>=0.7.0",
-]
-
 [project.urls]
 Repository = "https://github.com/nat-bishop/ai-agents"
 

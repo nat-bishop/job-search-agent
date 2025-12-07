@@ -39,24 +39,25 @@ Multi-agent workflows add:
 ## Environment Setup
 
 Requires Python 3.11 or 3.12 (not 3.14 - LangChain incompatible).
+Uses [uv](https://docs.astral.sh/uv/) for fast dependency management.
 
-```powershell
-# Create venv (first time)
-python -m venv .venv
+```bash
+# Install uv (if not installed)
+# Windows: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Linux/Mac: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Activate venv (every session)
-.venv\Scripts\Activate.ps1    # PowerShell
-.venv\Scripts\activate.bat    # CMD
-source .venv/bin/activate     # Git Bash / Linux
+# Create venv and install dependencies (first time)
+uv sync --extra dev
 
-# Install dependencies
-pip install -e ".[dev]"
+# Run any command (auto-syncs deps if needed)
+uv run python scripts/run_job_search.py
 ```
 
 ## Commands
 
 ```bash
-pip install -e ".[dev]"       # Install/update deps
+uv sync --extra dev           # Install/update all deps
+uv run <command>              # Run command in venv (auto-syncs)
 
 # Docker services (Ollama + SearXNG)
 docker compose up -d          # Start all containers
@@ -64,7 +65,7 @@ docker compose down           # Stop containers
 docker compose exec ollama ollama pull gpt-oss:120b  # Pull model
 
 # Run job search workflow
-python scripts/run_job_search.py
+uv run python scripts/run_job_search.py
 ```
 
 ## Code Quality (Automated)
@@ -73,7 +74,8 @@ Pre-commit hooks run automatically on `git commit`:
 - `ruff` - Linting and formatting (auto-fix enabled)
 - `mypy` - Type checking
 
-Claude Code hooks run on every file write/edit for instant feedback.
+Claude Code hooks (`.claude/hooks/`) run on every file write/edit for instant feedback.
+Hooks use UV single-file scripts (PEP 723) with embedded dependencies for isolation.
 
 Manual commands (if needed):
 ```bash

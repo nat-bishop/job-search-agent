@@ -72,9 +72,8 @@ until curl -s "http://localhost:8080/search?q=test&format=json" > /dev/null 2>&1
 done
 log "SearXNG is ready"
 
-# Activate venv and run workflow
+# Run workflow with uv (auto-syncs dependencies)
 log "Running job search..."
-source .venv/Scripts/activate
-python scripts/run_job_search.py 2>&1 | tee -a "$LOG_FILE"
+uv run python scripts/run_job_search.py 2>&1 | tee -a "$LOG_FILE"
 
 log "Job search complete. Log saved to $LOG_FILE"
