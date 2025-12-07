@@ -8,9 +8,11 @@ Living document tracking progress on the AI Agents project. High-level to allow 
 
 **Phase 2: First Workflow** - COMPLETE
 
-**Phase 2.5: Deep Agents Adoption** - IN PROGRESS
+**Phase 2.5: Deep Agents Adoption** - COMPLETE
 
 **Phase 2.7: Containerization** - COMPLETE
+
+**Phase 3: Job Search Workflow** - COMPLETE
 
 ---
 
@@ -79,15 +81,15 @@ Goal: Migrate to deep agents framework for subagent support and context manageme
 
 ### Migration
 - [x] Convert simple workflow from `create_react_agent` to `create_deep_agent`
-- [ ] Verify built-in tools (write_todos, filesystem) work with local model
+- [x] Verify built-in tools (write_todos, filesystem) work with local model
 - [x] Test subagent delegation with local model
-- [ ] Test memory stored long term (currently using InMemoryStore)
+- [x] Test memory stored long term (using FilesystemBackend)
 
 ### Research Subagent
-- [x] Add research subagent to simple workflow
-- [x] Configure long-term memory with CompositeBackend
+- [x] Add research subagent to job search workflow
+- [x] Configure long-term memory with FilesystemBackend
 - [x] Configure for context isolation (results summarized, not raw)
-- [x] Validate with web_search tool
+- [x] Validate with web_search and fetch tools
 
 ### Documentation
 - [x] Update ARCHITECTURE.md with deep agents patterns
@@ -119,27 +121,28 @@ Goal: Containerize Ollama with GPU access to prepare for Phase 4 concurrency req
 
 ---
 
-## Phase 3: Job Search Workflow
+## Phase 3: Job Search Workflow - COMPLETE
 
-Goal: Build the nursing job search workflow with safe Playwright commands.
-
-### Discovery (using Playwright MCP)
-- [ ] Identify target job boards (Indeed, hospital career pages, etc.)
-- [ ] Document CSS selectors and navigation patterns
-- [ ] Create safe, parameterized Playwright functions
+Goal: Build the nursing job search workflow with web search and content extraction.
 
 ### Implementation
-- [ ] src/workflows/job_search/agent.py - Job search agent
-- [ ] src/workflows/job_search/tools.py - Job board tools (search, filter, save)
-- [ ] src/services/browser.py - Playwright service with safe commands
-- [ ] src/services/storage.py - SQLite for tracking found jobs
-- [ ] config/job_boards.yaml - Configurable board URLs/selectors
+- [x] src/workflows/job_search/agent.py - Deep agent + research subagent
+- [x] src/workflows/job_search/tools.py - web_search (SearXNG), fetch (Trafilatura/PDF)
+- [x] src/workflows/job_search/prompts/ - YAML prompt files with variable injection
+- [x] Persistent memory via FilesystemBackend (data/memories/)
+- [x] Tool aliases for model robustness (search, fetch_page)
 
 ### Features
-- [ ] Search multiple boards
-- [ ] Deduplicate results
-- [ ] Filter by criteria (new grad, location, etc.)
-- [ ] Save results to database
+- [x] Search via SearXNG (self-hosted metasearch)
+- [x] Deduplicate results (seen_urls.txt tracking)
+- [x] PDF support via pymupdf/pymupdf4llm
+- [x] Filter by criteria (new grad RN, Bay Area)
+- [x] Save results to filesystem (jobs.md)
+
+### Testing
+- [x] tests/test_job_search.py - Memory, prompts, URL handling, tool aliases
+- [x] tests/test_smoke.py - Basic integration tests
+- [x] tests/test_llm.py - LLM factory and context length detection
 
 ---
 

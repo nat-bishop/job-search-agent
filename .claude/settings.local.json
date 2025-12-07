@@ -11,7 +11,9 @@
       "Bash(mypy:*)",
       "Bash(python -m pytest:*)",
       "Bash(pre-commit run:*)",
-      "Bash(source .venv/Scripts/activate)"
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(docker compose:*)",
+      "Bash(python scripts/run_job_search.py:*)"
     ],
     "deny": [],
     "ask": []

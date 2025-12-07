@@ -16,8 +16,12 @@ This document describes the current architecture of the AI Agents project.
 src/
 ├── core/           # Shared infrastructure
 │   ├── config.py   # Pydantic settings from .env
-│   ├── llm.py      # LLM factory for local Ollama
+│   ├── llm.py      # LLM factory for local Ollama + context length detection
 │   └── tracing.py  # Langfuse integration (optional)
+├── data/           # Agent working directory (FilesystemBackend root)
+│   └── memories/   # Persistent agent memory
+│       ├── jobs.md        # Job search results
+│       └── seen_urls.txt  # URL deduplication
 ├── workflows/      # Agent workflows by domain
 │   └── job_search/ # Nursing job search workflow
 │       ├── agent.py    # Deep agent + research subagent
@@ -176,11 +180,13 @@ We use `create_deep_agent` as the standard pattern for creating agents. Deep age
 
 ```python
 from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
 
 agent = create_deep_agent(
     model=get_llm(),
     tools=[custom_tool],
-    system_prompt="You are a helpful assistant..."
+    system_prompt="You are a helpful assistant...",
+    backend=lambda rt: FilesystemBackend(root_dir="data", virtual_mode=True),
 )
 ```
 
@@ -197,47 +203,70 @@ For complex tasks requiring delegation, use subagents:
 
 ```python
 from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
 
 # Define subagent as a dictionary
 RESEARCH_SUBAGENT = {
     "name": "research",
     "description": "Searches the web and synthesizes information.",
     "system_prompt": "You are a research specialist...",
-    "tools": [web_search],
+    "tools": [web_search, fetch],
 }
 
 # Main agent delegates to subagent via task() tool
 main_agent = create_deep_agent(
     model=get_llm(),
-    tools=[get_current_time],
+    tools=[],  # Main agent delegates to subagent
     subagents=[RESEARCH_SUBAGENT],
-    system_prompt="You coordinate research tasks..."
+    system_prompt="You coordinate research tasks...",
+    backend=lambda rt: FilesystemBackend(root_dir="data", virtual_mode=True),
 )
 ```
 
 ### Long-term Memory
 
-Deep agents support persistent memory via `CompositeBackend` with path-based routing:
+Deep agents support persistent memory via `FilesystemBackend`:
 
-| Path | Storage Type | Use Case |
-|------|--------------|----------|
-| `/memories/` | Persistent | Facts, preferences, learned information |
-| `/workspace/` | Ephemeral | Scratch space, temporary working data |
+```python
+from deepagents.backends import FilesystemBackend
 
-Memory is automatically managed - agents read/write to paths and the backend routes to appropriate storage.
+agent = create_deep_agent(
+    model=get_llm(),
+    tools=[...],
+    system_prompt=SYSTEM_PROMPT,
+    backend=lambda rt: FilesystemBackend(root_dir="data", virtual_mode=True),
+)
+```
+
+The `FilesystemBackend` stores agent memory in the local filesystem:
+- Files persist across sessions in the `data/` directory
+- Agent uses `read_file`, `write_file`, `edit_file` tools to manage memory
+- `virtual_mode=True` enables sandboxed file operations
+
+**Memory structure for job search workflow:**
+| Path | Purpose |
+|------|---------|
+| `/memories/jobs.md` | Curated job opportunities list |
+| `/memories/seen_urls.txt` | URLs already processed (deduplication) |
 
 ## Workflow Structure
 
 Each workflow is a subdirectory containing:
-- `agent.py` - Deep agent with system prompt via `prompt` parameter
+- `agent.py` - Deep agent with system prompt via `system_prompt` parameter
 - `tools.py` - Tools specific to that workflow
+- `prompts/` - YAML prompt files with variable injection
 
 ```python
-# src/workflows/simple/agent.py
+# src/workflows/job_search/agent.py
+from deepagents import create_deep_agent
+from deepagents.backends import FilesystemBackend
+
 agent = create_deep_agent(
-    model=get_llm(),
-    tools=[get_current_time],
-    prompt="You are a helpful assistant..."
+    model=get_agent_llm(),
+    tools=[],  # Main agent uses subagents
+    subagents=[RESEARCH_SUBAGENT],
+    system_prompt=load_prompt("main_agent")["system_prompt"],
+    backend=lambda rt: FilesystemBackend(root_dir=DATA_DIR, virtual_mode=True),
 )
 ```
 
@@ -300,13 +329,12 @@ Primary model changed from `qwen2.5:72b-instruct-q8_0` to `gpt-oss:120b`:
 
 | Aspect | gpt-oss:120b | qwen2.5:72b-instruct-q8_0 |
 |--------|--------------|---------------------------|
-| Release | Aug 2025 | Mar 2024 |
 | Architecture | MoE (5.1B active) | Dense (22B all-active) |
 | VRAM | ~60GB | ~75GB |
 | Strengths | Agentic tasks, reasoning | General knowledge |
 
 **Why gpt-oss:120b?**
-- Newer model with improvements for agentic workflows
+- Optimized for agentic workflows and tool calling
 - More efficient: 5.1B active parameters vs 22B
 - Better suited for tool-calling patterns in Deep Agents
 

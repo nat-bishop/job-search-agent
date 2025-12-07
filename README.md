@@ -92,14 +92,20 @@ src/
 ├── workflows/      # Agent workflows by domain
 │   └── job_search/ # Nursing job search (main workflow)
 │       ├── agent.py    # Deep agent + research subagent
-│       ├── tools.py    # web_search (SearXNG), fetch
-│       └── prompts/    # YAML prompt files
+│       ├── tools.py    # web_search (SearXNG), fetch (Trafilatura/PDF)
+│       └── prompts/    # YAML prompt files with variable injection
 ├── core/           # Config and LLM factory
 │   ├── config.py   # Settings from .env
-│   ├── llm.py      # get_llm() - local Ollama models
+│   ├── llm.py      # get_llm() + context length detection
 │   └── tracing.py  # Langfuse integration (optional)
+├── data/           # Agent working directory
+│   └── memories/   # Persistent agent memory (jobs.md, seen_urls.txt)
 scripts/
 └── run_job_search.py  # Entry point for job search workflow
+tests/
+├── test_job_search.py  # Job search workflow tests
+├── test_llm.py         # LLM factory tests
+└── test_smoke.py       # Basic integration tests
 ```
 
 ## Configuration
@@ -123,7 +129,8 @@ Python app connects to `localhost:11434` (Ollama) and `localhost:8080` (SearXNG)
 See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed progress.
 
 - [x] Phase 1: Foundation (config, LLM factory)
-- [x] Phase 2: Deep agent pattern
+- [x] Phase 2: Deep agent pattern with subagents
+- [x] Phase 2.7: Docker containerization (Ollama + SearXNG)
 - [x] Phase 3: Job search workflow (with persistent memory)
 - [ ] Phase 4: API & scheduling
 - [ ] Phase 5: Multi-agent orchestration
@@ -139,9 +146,9 @@ See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for detailed progress.
 Developed on RTX PRO 6000 Blackwell (96GB VRAM).
 
 **Why gpt-oss:120b?**
-- Newer model (Aug 2025 vs Qwen's Mar 2024)
 - Optimized for agentic workflows with better reasoning
 - More efficient: 5.1B active parameters (MoE) vs 22B all-active
+- Better tool calling reliability than older Qwen models
 
 ## License
 

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Auto-detection of model context length for summarization (`get_model_context_length()` in llm.py)
+  - Queries Ollama API for model's context_length at startup
+  - Sets `model.profile["max_input_tokens"]` for LangChain middleware
+  - Cached per model name for efficiency
+  - Falls back to 131072 if query fails
 - `time_range` parameter for `web_search` tool (day, week, month, year)
   - Filters search results to recent timeframes via SearXNG API
   - Useful for finding recent job postings
@@ -25,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Job search workflow (`src/workflows/job_search/`)
   - Main agent delegates to research subagent for web searches
   - SearXNG integration for self-hosted web search (replaces Exa)
-  - Persistent memory via FilesystemBackend
+  - Persistent memory via FilesystemBackend (stores in `data/` directory)
   - YAML-based prompts with `{current_date}` injection
   - Memory file initialization on agent startup (creates `data/memories/` directory and files)
 - SearXNG Docker service for local web search
@@ -40,11 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pinned image versions for reproducibility
 - Smoke tests (`tests/test_smoke.py`)
 - Job search tests (`tests/test_job_search.py`) covering memory, prompts, URL handling, and tool aliases
+- LLM tests (`tests/test_llm.py`) for context length detection and LLM factory
 - URL deduplication in job search workflow
   - `web_search` filters out already-seen URLs before returning results
   - `fetch` tracks URLs after successful fetch
 - URL blocking in `fetch` tool
   - Blocks social media URLs (Instagram, Facebook, Twitter/X, LinkedIn)
+- Pre-commit hooks configuration (`.pre-commit-config.yaml`)
+  - ruff for linting and formatting (auto-fix enabled)
+  - mypy for type checking
+- Claude Code hooks for instant feedback on file writes/edits
 
 ### Changed
 - `fetch` tool rewritten to use Trafilatura instead of Playwright
@@ -60,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `fetch_page` tool to `fetch` (reduces tool hallucinations with local models)
 
 ### Removed
+- Simple workflow (`src/workflows/simple/`) - replaced by job search workflow
 - Playwright dependency (replaced by Trafilatura for content extraction)
 - PDF URL blocking in `fetch` tool (PDFs are now supported)
 - `src/api/` directory (empty placeholder for future API)
