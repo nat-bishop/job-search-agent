@@ -1,27 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(netstat:*)",
-      "Bash(findstr:*)",
-      "Bash(tasklist /FI \"PID eq 28280\")",
-      "Bash(tasklist:*)",
-      "Bash(docker inspect:*)",
-      "Bash(docker exec:*)",
-      "Bash(docker logs:*)",
-      "Bash(source .venv/Scripts/activate)",
-      "Bash(python:*)",
-      "WebSearch",
-      "mcp__docs-langchain__SearchDocsByLangChain",
-      "WebFetch(domain:docs.searxng.org)",
-      "WebFetch(domain:python.langchain.com)",
-      "WebFetch(domain:medium.com)",
-      "WebFetch(domain:docs.langchain.com)",
-      "WebFetch(domain:qwen.readthedocs.io)",
-      "mcp__langfuse-docs__getLangfuseDocsPage",
-      "WebFetch(domain:api.python.langchain.com)",
-      "Bash(docker ps:*)",
-      "Bash(pip show:*)",
-      "Bash(cat:*)"
+      "Bash(docker compose exec:*)"
     ],
     "deny": [],
     "ask": []

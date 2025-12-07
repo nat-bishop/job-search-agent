@@ -102,3 +102,6 @@ token.json
 # Docker / Ollama data
 .ollama-data/
 .postgres-data/
+
+# SearXNG config (contains secret key)
+searxng/settings.yml

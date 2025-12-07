@@ -54,7 +54,7 @@ Tools use a **two-layer documentation pattern**:
 ```python
 @tool
 def web_search(query: str) -> str:
-    """Search the web using Exa neural search.
+    """Search the web using SearXNG.
 
     Args:
         query: Natural language search query

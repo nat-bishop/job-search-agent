@@ -8,24 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Langfuse tracing integration for LLM observability
-  - `src/core/tracing.py` with `get_langfuse_handler()` function
-  - Automatic dotenv loading before Langfuse import (required for env var reading)
-  - Self-hosted Langfuse at sibling repo `../langfuse`
-- Docker containerization for Ollama with GPU passthrough (Phase 2.7)
+- Job search workflow (`src/workflows/job_search/`)
+  - Main agent delegates to research subagent for web searches
+  - SearXNG integration for self-hosted web search (replaces Exa)
+  - Persistent memory via FilesystemBackend
+  - YAML-based prompts with `{current_date}` injection
+  - Memory file initialization on agent startup (creates `data/memories/` directory and files)
+- SearXNG Docker service for local web search
+  - `searxng/settings.yml.example` template
+  - Configured engines: Brave, StartPage, Qwant, Google
+- Langfuse tracing integration (now optional)
+  - `src/core/tracing.py` returns `None` if credentials missing
+  - Graceful degradation when tracing not configured
+- Docker containerization for Ollama with GPU passthrough
   - `docker-compose.yml` with Nvidia GPU support
-  - Persistent model storage in `.ollama-data/` volume (65GB+ models)
-  - Prevents GPU OOM issues when running concurrent agents
-- Architecture foundation for Phase 4 Redis queue + worker pattern
-  - Container enables process isolation for multi-agent concurrency
-  - Optional but recommended for production workloads
+  - Persistent model storage in `.ollama-data/` volume
+  - Pinned image versions for reproducibility
+- Smoke tests (`tests/test_smoke.py`)
+- Job search tests (`tests/test_job_search.py`) covering memory, prompts, and URL handling
+- URL deduplication in job search workflow
+  - `web_search` filters out already-seen URLs before returning results
+  - `fetch` tracks URLs after successful fetch
+- URL blocking in `fetch` tool
+  - Blocks social media URLs (Instagram, Facebook, Twitter/X, LinkedIn)
+  - Blocks PDF URLs (not parseable as HTML)
 
 ### Changed
-- Primary model updated from `qwen2.5:72b-instruct-q8_0` to `gpt-oss:120b`
-  - gpt-oss:120b is newer (Aug 2025 vs Mar 2024)
-  - Better for agentic tasks with improved reasoning
-  - More efficient: 5.1B active parameters vs 22B (MoE architecture)
-- `.gitignore` updated to exclude `.ollama-data/` volume directory
+- **Breaking:** Simplified LLM factory to local Ollama only
+  - Removed `LLMProvider` enum (was single-value)
+  - Removed provider switching - uses Ollama directly
+  - Updated `get_llm()` to use ChatOpenAI with Ollama endpoint
+- Primary model updated to `gpt-oss:120b` (from Qwen 2.5)
+- Web search migrated from Exa API to self-hosted SearXNG
+- Renamed `fetch_page` tool to `fetch` (reduces tool hallucinations with local models)
+
+### Removed
+- `src/api/` directory (empty placeholder for future API)
+- `src/services/` directory (empty placeholder)
+- `config/` directory (unused)
+- Unused dependencies: langchain-anthropic, langchain-ollama, fastapi, uvicorn, apscheduler, redis, docker
+- `LLM_PROVIDER` environment variable (only local supported)
+- Exa API integration (replaced by SearXNG)
 
 ## [0.2.0] - 2025-11-30
 

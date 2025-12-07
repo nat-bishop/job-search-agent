@@ -5,7 +5,13 @@ using Playwright for JavaScript-rendered content.
 
 Tools are async-compatible for parallel execution when the LLM
 calls multiple tools in a single response.
+
+URL deduplication is handled automatically:
+- web_search filters out already-seen URLs before returning to LLM
+- fetch tracks URLs after successful fetch
 """
+
+from pathlib import Path
 
 from langchain_community.document_loaders import AsyncChromiumLoader
 from langchain_community.document_transformers import Html2TextTransformer
@@ -13,6 +19,29 @@ from langchain_community.utilities import SearxSearchWrapper
 from langchain_core.tools import tool
 
 from src.core.config import settings
+
+# Path to seen URLs file (same data dir as agent's filesystem)
+SEEN_URLS_PATH = Path(__file__).parent.parent.parent / "data" / "memories" / "seen_urls.txt"
+
+# Domains that require authentication - can't scrape
+BLOCKED_DOMAINS = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com"]
+
+
+def _load_seen_urls() -> set[str]:
+    """Load already-processed URLs from disk.
+
+    File is created by agent.py at init, so it always exists.
+    """
+    if not SEEN_URLS_PATH.exists():
+        return set()
+    content = SEEN_URLS_PATH.read_text().strip()
+    return set(content.split("\n")) if content else set()
+
+
+def _save_url(url: str) -> None:
+    """Append a URL to the seen list."""
+    with open(SEEN_URLS_PATH, "a") as f:
+        f.write(url + "\n")
 
 # Shared wrapper instance
 _wrapper: SearxSearchWrapper | None = None
@@ -50,6 +79,13 @@ async def web_search(query: str) -> str:
     if not results:
         return "No results found. Try different search terms."
 
+    # Filter out already-seen URLs BEFORE returning to LLM (shift-left deduplication)
+    seen_urls = _load_seen_urls()
+    results = [r for r in results if r.get("link", "") not in seen_urls]
+
+    if not results:
+        return "No NEW results found (all URLs already processed). Try different search terms."
+
     # Format results
     output = []
     for r in results:
@@ -74,7 +110,7 @@ def get_html2text() -> Html2TextTransformer:
 
 
 @tool
-async def fetch_page(url: str) -> str:
+async def fetch(url: str) -> str:
     """Fetch and extract text content from a webpage.
 
     Uses Playwright to render JavaScript, so works with dynamic pages.
@@ -85,6 +121,14 @@ async def fetch_page(url: str) -> str:
     Returns:
         Extracted text content from the page (truncated to ~10k chars)
     """
+    # Skip social media (require authentication)
+    if any(domain in url.lower() for domain in BLOCKED_DOMAINS):
+        return f"Skipped social media URL (requires authentication): {url}"
+
+    # Skip PDFs (can't render)
+    if url.lower().endswith(".pdf"):
+        return f"Cannot fetch PDF files: {url}. Search for the HTML job posting page instead."
+
     try:
         loader = AsyncChromiumLoader([url])
         docs = await loader.aload()
@@ -103,6 +147,9 @@ async def fetch_page(url: str) -> str:
         # Truncate to avoid context overflow
         if len(content) > 10000:
             content = content[:10000] + "\n\n[Content truncated...]"
+
+        # Track this URL AFTER successful fetch
+        _save_url(url)
 
         return content
 

@@ -1,66 +1,35 @@
-"""LLM factory with provider swapping support."""
+"""LLM factory for local Ollama models.
+
+Uses ChatOpenAI pointed at Ollama's /v1 endpoint instead of ChatOllama.
+This provides more reliable tool calling because:
+1. ChatOpenAI's tool handling is more battle-tested
+2. Ollama's OpenAI-compatible endpoint has better tool message formatting
+3. Avoids ChatOllama's tool_call_id serialization bugs with Qwen/Llama models
+"""
 
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
+from pydantic import SecretStr
 
-from src.core.config import LLMProvider, settings
-
-if TYPE_CHECKING:
-    pass
+from src.core.config import settings
 
 
-def get_llm(
-    provider: LLMProvider | str | None = None,
-    *,
-    temperature: float = 0.0,
-    **kwargs,
-) -> BaseChatModel:
+def get_llm(*, temperature: float = 0.0, **kwargs: Any) -> BaseChatModel:
     """
-    Get an LLM instance based on the configured or specified provider.
+    Get an LLM instance configured for local Ollama.
 
     Args:
-        provider: Override the default provider. Can be LLMProvider enum or string.
         temperature: Model temperature (0.0 = deterministic).
         **kwargs: Additional arguments passed to the model constructor.
 
     Returns:
         A LangChain chat model instance.
 
-    Raises:
-        ValueError: If the provider is not supported or required API key is missing.
-
     Examples:
-        >>> # Use default provider from settings
         >>> llm = get_llm()
-
-        >>> # Override to use Anthropic
-        >>> llm = get_llm("anthropic")
-
-        >>> # With custom temperature
         >>> llm = get_llm(temperature=0.7)
-    """
-    # Normalize provider
-    if provider is None:
-        provider = settings.llm_provider
-    elif isinstance(provider, str):
-        provider = LLMProvider(provider.lower())
-
-    if provider == LLMProvider.LOCAL:
-        return _get_ollama_llm(temperature=temperature, **kwargs)
-    else:
-        raise ValueError(f"Unsupported LLM provider: {provider}")
-
-
-def _get_ollama_llm(temperature: float = 0.0, **kwargs) -> BaseChatModel:
-    """Get Ollama (local) LLM via OpenAI-compatible endpoint.
-
-    Uses ChatOpenAI pointed at Ollama's /v1 endpoint instead of ChatOllama.
-    This provides more reliable tool calling because:
-    1. ChatOpenAI's tool handling is more battle-tested
-    2. Ollama's OpenAI-compatible endpoint has better tool message formatting
-    3. Avoids ChatOllama's tool_call_id serialization bugs with Qwen/Llama models
     """
     from langchain_openai import ChatOpenAI
 
@@ -73,12 +42,10 @@ def _get_ollama_llm(temperature: float = 0.0, **kwargs) -> BaseChatModel:
     return ChatOpenAI(
         model=settings.local_model,
         base_url=base_url,
-        api_key="ollama",  # Required by ChatOpenAI but ignored by Ollama
+        api_key=SecretStr("ollama"),  # Required by ChatOpenAI but ignored by Ollama
         temperature=temperature,
         **kwargs,
     )
-
-    
 
 
 @lru_cache(maxsize=1)
@@ -95,14 +62,12 @@ def get_default_llm() -> BaseChatModel:
     return get_llm()
 
 
-# Convenience function for agents
-def get_agent_llm(**kwargs) -> BaseChatModel:
+def get_agent_llm(**kwargs: Any) -> BaseChatModel:
     """
     Get an LLM configured for agent use.
 
     This sets sensible defaults for agent tool calling:
     - temperature=0.0 for deterministic outputs
-    - Configured for the default provider
 
     Args:
         **kwargs: Override any default settings.
@@ -110,8 +75,6 @@ def get_agent_llm(**kwargs) -> BaseChatModel:
     Returns:
         LLM configured for agent use.
     """
-    defaults = {
-        "temperature": 0.0,
-    }
+    defaults = {"temperature": 0.0}
     defaults.update(kwargs)
     return get_llm(**defaults)

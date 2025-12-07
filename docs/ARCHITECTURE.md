@@ -16,12 +16,13 @@ This document describes the current architecture of the AI Agents project.
 src/
 ├── core/           # Shared infrastructure
 │   ├── config.py   # Pydantic settings from .env
-│   ├── llm.py      # LLM factory with provider swapping
-│   └── tracing.py  # Langfuse integration
+│   ├── llm.py      # LLM factory for local Ollama
+│   └── tracing.py  # Langfuse integration (optional)
 ├── workflows/      # Agent workflows by domain
-│   └── simple/     # Single-agent test workflow
-├── services/       # External service integrations (empty)
-└── api/            # FastAPI server (empty)
+│   └── job_search/ # Nursing job search workflow
+│       ├── agent.py    # Deep agent + research subagent
+│       ├── tools.py    # web_search, fetch
+│       └── prompts/    # YAML prompt files
 ```
 
 ## Implemented Components
@@ -30,44 +31,39 @@ src/
 
 Environment-based configuration using Pydantic Settings:
 
-- **LLM Provider Selection**: Choose between local (Ollama), Anthropic, or OpenAI
-- **Model Configuration**: Set model names and API keys per provider
-- **External APIs**: Placeholder for service API keys (e.g., Exa for web search)
+- **LLM Configuration**: Model name and Ollama URL
+- **Web Search**: SearXNG host URL
+- **Database**: Optional PostgreSQL for LangGraph Store
 
 Configuration is loaded from `.env` file. See `.env.example` for all available options.
 
 **Design decisions:**
-- Settings-based rather than hard-coded to support easy provider switching
-- Enum-based provider type for type safety
+- Settings-based rather than hard-coded for flexibility
 - Minimal - only includes what's needed for current implementation
 
 ### LLM Factory (`src/core/llm.py`)
 
-Factory pattern for creating LLM instances:
+Factory for creating Ollama LLM instances:
 
 ```python
-from src.core.llm import get_llm
+from src.core.llm import get_llm, get_agent_llm
 
-# Use default provider from .env
+# Get LLM with defaults
 llm = get_llm()
-
-# Override to use Anthropic
-llm = get_llm("anthropic")
 
 # For agent use (temperature=0.0)
 llm = get_agent_llm()
 ```
 
-**Supported providers:**
-- **Local (Ollama)**: Default, optimized for Qwen 2.5 with tool calling support
-- **Anthropic**: Claude Sonnet 4 for fallback/comparison
-- **OpenAI**: GPT-4 for fallback/comparison
+Uses `ChatOpenAI` pointed at Ollama's `/v1` endpoint instead of `ChatOllama`. This provides more reliable tool calling because:
+1. ChatOpenAI's tool handling is more battle-tested
+2. Ollama's OpenAI-compatible endpoint has better tool message formatting
+3. Avoids ChatOllama's tool_call_id serialization bugs with Qwen/Llama models
 
 **Design decisions:**
 - Returns LangChain `BaseChatModel` for compatibility with LangGraph
-- Late imports to avoid loading unused provider libraries
-- Provider-specific configuration encapsulated in private functions
-- Cached `get_default_llm()` for efficiency in single-provider scenarios
+- Late import of `ChatOpenAI` to avoid loading unused libraries
+- Cached `get_default_llm()` for efficiency
 
 ## LangGraph Patterns
 
@@ -98,7 +94,7 @@ This matches the Deep Agents quickstart pattern and keeps tools focused while gi
 ```python
 @tool
 def web_search(query: str) -> str:
-    """Search the web using Exa neural search.
+    """Search the web using SearXNG.
 
     Args:
         query: Natural language search query
@@ -341,10 +337,9 @@ View traces at: http://localhost:3000
 ## Design Principles
 
 1. **YAGNI (You Aren't Gonna Need It)**: Only build what's needed for current phase
-2. **Provider Agnostic**: Support local and cloud LLMs interchangeably
-3. **Local First**: Optimize for running on local models (privacy, cost)
-4. **Configuration Over Code**: Runtime behavior controlled via `.env`
-5. **Type Safety**: Use Pydantic and type hints throughout
+2. **Local First**: Optimize for running on local models (privacy, cost)
+3. **Configuration Over Code**: Runtime behavior controlled via `.env`
+4. **Type Safety**: Use Pydantic and type hints throughout
 
 ## Next Steps
 

@@ -9,8 +9,8 @@ Built with [LangGraph Deep Agents](https://docs.langchain.com/oss/python/deepage
 Current workflow: **Nursing job search** - finds new grad RN positions in the Bay Area.
 
 Features:
-- Deep agent with research subagent (Exa web search)
-- Persistent memory across runs (PostgresStore)
+- Deep agent with research subagent (SearXNG web search)
+- Persistent memory across runs (local files)
 - Tracks seen jobs to report only NEW findings
 
 ## Quick Start
@@ -27,7 +27,8 @@ python scripts/run_job_search.py
 
 - Python 3.11 or 3.12 (not 3.14 - LangChain incompatible)
 - Docker & Docker Compose
-- Langfuse (self-hosted) - see [Setup Guide](docs/ARCHITECTURE.md#observability)
+- NVIDIA GPU with ~60GB VRAM (for gpt-oss:120b model)
+- Optional: Langfuse for tracing - see [Setup Guide](docs/ARCHITECTURE.md#observability)
 
 ## Setup
 
@@ -91,13 +92,12 @@ src/
 ├── workflows/      # Agent workflows by domain
 │   └── job_search/ # Nursing job search (main workflow)
 │       ├── agent.py    # Deep agent + research subagent
-│       └── tools.py    # web_search (Exa)
+│       ├── tools.py    # web_search (SearXNG), fetch
+│       └── prompts/    # YAML prompt files
 ├── core/           # Config and LLM factory
 │   ├── config.py   # Settings from .env
-│   ├── llm.py      # get_llm() - supports Ollama, Anthropic, OpenAI
-│   └── tracing.py  # Langfuse integration
-├── services/       # External integrations (future)
-└── api/            # FastAPI server (future)
+│   ├── llm.py      # get_llm() - local Ollama models
+│   └── tracing.py  # Langfuse integration (optional)
 scripts/
 └── run_job_search.py  # Entry point for job search workflow
 ```
@@ -106,16 +106,17 @@ scripts/
 
 Set in `.env`:
 ```bash
-LLM_PROVIDER=local          # or "anthropic", "openai"
 LOCAL_MODEL=gpt-oss:120b    # Ollama model name
 OLLAMA_URL=http://localhost:11434
+SEARXNG_HOST=http://localhost:8080
 
-# Required for job search workflow
-EXA_API_KEY=your-key        # Exa web search API
-DATABASE_URL=postgresql://langraph:langraph@localhost:5432/langraph
+# Optional: Langfuse tracing
+# LANGFUSE_SECRET_KEY=sk-lf-...
+# LANGFUSE_PUBLIC_KEY=pk-lf-...
+# LANGFUSE_HOST=http://localhost:3000
 ```
 
-Python app connects to `localhost:11434` (Ollama) and `localhost:5432` (PostgreSQL).
+Python app connects to `localhost:11434` (Ollama) and `localhost:8080` (SearXNG).
 
 ## Roadmap
 

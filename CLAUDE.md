@@ -21,9 +21,7 @@ src/
 │       └── prompts/     # YAML prompt files
 │           ├── main_agent.yaml
 │           └── {subagent}.yaml
-├── core/       # config.py, llm.py
-├── services/   # External integrations (when needed)
-└── api/        # FastAPI (future)
+└── core/       # config.py, llm.py, tracing.py
 ```
 
 Multi-agent workflows add:
@@ -34,8 +32,8 @@ Multi-agent workflows add:
 ## Key Files
 
 - `src/core/config.py` → `settings` object, loads from `.env`
-- `src/core/llm.py` → `get_llm()` factory, supports local/anthropic/openai
-- `src/core/tracing.py` → `get_langfuse_handler()` for LLM tracing
+- `src/core/llm.py` → `get_llm()` factory for local Ollama models
+- `src/core/tracing.py` → `get_langfuse_handler()` for LLM tracing (optional)
 
 ## Environment Setup
 
@@ -84,7 +82,7 @@ python scripts/run_job_search.py
 - Tools are colocated with their workflow
 - Use subagents for delegation (e.g., research subagent)
 - Built-in tools: write_todos, filesystem (ls, read_file, write_file, edit_file)
-- Long-term memory via CompositeBackend + PostgresStore (path routing to `/memories/`)
+- Long-term memory via FilesystemBackend (stores in `/memories/` directory)
 - Tools return error strings for LLM-recoverable failures (not exceptions)
 - See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#deep-agents) for detailed patterns
 

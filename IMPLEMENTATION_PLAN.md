@@ -25,7 +25,7 @@ Living document tracking progress on the AI Agents project. High-level to allow 
 
 ### Core Infrastructure
 - [x] src/core/config.py - Pydantic settings (LLM provider, API keys, paths)
-- [x] src/core/llm.py - LLM factory with provider swapping (Ollama ↔ Anthropic)
+- [x] src/core/llm.py - LLM factory for local Ollama models
 - [x] Directory structure with `__init__.py` files
 
 ### Claude Code Agents
@@ -49,17 +49,17 @@ Goal: Get ONE simple workflow working end-to-end. Keep it minimal.
 - [x] src/workflows/simple/agent.py - ReAct agent using `create_react_agent`
 - [x] src/workflows/simple/tools.py - Two simple tools:
   - `get_current_time` - no deps, just returns time
-  - `web_search` - calls Exa directly (no service layer yet)
+  - `web_search` - uses SearXNG (self-hosted metasearch)
 - [x] scripts/test_simple_agent.py - Interactive test script
 - [x] Verify tool calling works with local Qwen 2.5
 
-### Exa SDK Setup (for web_search tool)
-Exa provides neural web search. Setup when needed:
-1. Get API key from https://exa.ai
-2. Add to `.env`: `EXA_API_KEY=your-key-here`
-3. The `web_search` tool will work automatically
+### SearXNG Setup (for web_search tool)
+SearXNG provides self-hosted web search. Setup:
+1. Copy config: `cp searxng/settings.yml.example searxng/settings.yml`
+2. Generate secret: `python -c "import secrets; print(secrets.token_hex(32))"`
+3. Start services: `docker compose up -d`
 
-For now, testing uses only `get_current_time` (no API key required).
+SearXNG runs in Docker alongside Ollama.
 
 ### Validation
 - [x] Agent reasons and picks correct tool
@@ -210,7 +210,7 @@ Not planned yet, add as needed:
 
 - [ ] Email agent (Gmail integration)
 - [ ] Calendar agent
-- [ ] Research agent (deep web search with Exa)
+- [ ] Research agent (enhanced web search capabilities)
 - [ ] vLLM upgrade (for better tool calling streaming)
 - [ ] Web UI for monitoring
 - [ ] Human-in-the-loop approval flows
@@ -268,5 +268,5 @@ Not planned yet, add as needed:
 - [Deep Agents Subagents](https://docs.langchain.com/oss/python/deepagents/subagents)
 - [Deep Agents Long-Term Memory](https://docs.langchain.com/oss/python/deepagents/long-term-memory)
 - [Qwen 2.5 Tool Calling](https://huggingface.co/Qwen/Qwen2.5-72B-Instruct)
-- [Exa Python SDK](https://github.com/exa-labs/exa-py)
+- [SearXNG Documentation](https://docs.searxng.org/)
 - [Docker: Local LLM Tool Calling](https://www.docker.com/blog/local-llm-tool-calling-a-practical-evaluation/)

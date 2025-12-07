@@ -103,6 +103,8 @@ async def main():
         agent = create_job_search_agent()
         langfuse_handler = get_langfuse_handler()
         print_flush("Agent initialized successfully")
+        if langfuse_handler:
+            print_flush("Langfuse tracing enabled")
     except Exception as e:
         print_flush(f"\n[ERROR] Failed to initialize agent: {e}")
         print_flush("\nMake sure services are running: docker compose up -d")
@@ -118,9 +120,10 @@ async def main():
     try:
         # Stream events for real-time progress
         final_content = None
+        config = {"callbacks": [langfuse_handler]} if langfuse_handler else {}
         async for event in agent.astream(
             {"messages": [{"role": "user", "content": task}]},
-            config={"callbacks": [langfuse_handler]},
+            config=config,
             subgraphs=True,  # Stream subagent events too
         ):
             print_event(event)
@@ -144,7 +147,10 @@ async def main():
                 print_flush(final_content.encode("ascii", "replace").decode("ascii"))
 
         print_flush("\n" + "=" * 60)
-        print_flush("Search complete. View traces at http://localhost:3000")
+        if langfuse_handler:
+            print_flush("Search complete. View traces at http://localhost:3000")
+        else:
+            print_flush("Search complete.")
         print_flush("=" * 60)
 
     except KeyboardInterrupt:

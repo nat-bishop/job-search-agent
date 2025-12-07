@@ -7,18 +7,26 @@ Prompts are loaded from YAML files for easier iteration.
 
 import os
 from datetime import date
+from pathlib import Path
 
 import yaml
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
 from src.core.llm import get_agent_llm
-from src.workflows.job_search.tools import fetch_page, web_search
+from src.workflows.job_search.tools import fetch, web_search
 
 # Directories
 WORKFLOW_DIR = os.path.dirname(__file__)
 PROMPTS_DIR = os.path.join(WORKFLOW_DIR, "prompts")
 DATA_DIR = os.path.join(WORKFLOW_DIR, "..", "..", "..", "data")
+
+# Memory files (created at init so agent always finds them)
+MEMORIES_DIR = Path(DATA_DIR) / "memories"
+JOBS_FILE = MEMORIES_DIR / "jobs.md"
+SEEN_URLS_FILE = MEMORIES_DIR / "seen_urls.txt"
+
+JOBS_HEADER = "# Bay Area New Grad RN Opportunities\n"
 
 
 def load_prompt(name: str) -> dict:
@@ -48,7 +56,7 @@ RESEARCH_SUBAGENT = {
     "name": _research_prompt["name"],
     "description": _research_prompt["description"],
     "system_prompt": _research_prompt["system_prompt"],
-    "tools": [web_search, fetch_page],
+    "tools": [web_search, fetch],
     # Inherits default_middleware from SubAgentMiddleware (TodoListMiddleware, FilesystemMiddleware)
     # Research subagent CAN access filesystem but prompt instructs it not to write
 }
@@ -58,10 +66,25 @@ RESEARCH_SUBAGENT = {
 # Agent Factory
 # =============================================================================
 
+def _init_memory_files() -> None:
+    """Ensure memory files exist before agent starts.
+
+    Creates jobs.md with header and empty seen_urls.txt if they don't exist.
+    This guarantees the agent always finds these files on read.
+    """
+    MEMORIES_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not JOBS_FILE.exists():
+        JOBS_FILE.write_text(JOBS_HEADER)
+
+    if not SEEN_URLS_FILE.exists():
+        SEEN_URLS_FILE.touch()
+
+
 def create_job_search_agent():
     """Create the job search agent with persistent local filesystem."""
     llm = get_agent_llm()
-    os.makedirs(DATA_DIR, exist_ok=True)
+    _init_memory_files()
 
     return create_deep_agent(
         model=llm,

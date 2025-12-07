@@ -25,7 +25,7 @@ Provide a complete understanding of how a specific feature works by tracing its 
 - **YAML prompts**: Prompts in `prompts/*.yaml` with variable injection (`{current_date}`)
 - **Long-term memory**: CompositeBackend with path-based routing
 - **Tools**: Functions decorated with `@tool` (may call APIs directly or via services)
-- **LLM**: Provider-agnostic via `get_llm()` factory
+- **LLM**: Local Ollama via `get_llm()` factory
 - **Async execution**: `astream()`/`ainvoke()` for async tools
 
 ## Analysis Approach
@@ -45,13 +45,13 @@ Provide a complete understanding of how a specific feature works by tracing its 
 **3. Tool & Service Analysis**
 - Tools may call APIs directly (YAGNI - no service layer until duplication)
 - Look for service layer only if it exists
-- External API integrations (Exa, Playwright, etc.)
+- External API integrations (SearXNG, Playwright, etc.)
 - Error handling patterns (return strings, not exceptions)
 
 **4. Configuration & Dependencies**
 - Environment via `settings` from `src/core/config`
-- LLM provider configuration
-- External service credentials
+- LLM settings (model name, Ollama URL)
+- External service URLs (SearXNG, optional Langfuse)
 
 ## Output Guidance
 
