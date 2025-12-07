@@ -27,41 +27,63 @@ def setup_logging(json_logs: bool = False, log_file: str | None = None) -> None:
         json_logs: If True, output JSON format (for machine parsing)
         log_file: Optional file path to write logs (creates parent dirs)
     """
-    # Configure standard library logging
-    logging.basicConfig(
-        format="%(message)s",
-        stream=sys.stdout,
-        level=logging.INFO,
-    )
-
-    # Add file handler if specified
-    if log_file:
-        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
-        file_handler = logging.FileHandler(log_file)
-        logging.getLogger().addHandler(file_handler)
-
-    # Build processor chain
-    processors: list[structlog.types.Processor] = [
+    # Build shared processor chain for pre-processing
+    shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,  # Merges trace_id from context
-        structlog.processors.add_log_level,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
     ]
 
+    # Choose renderer based on json_logs setting
+    renderer: structlog.types.Processor
     if json_logs:
-        processors.append(structlog.processors.JSONRenderer())
+        renderer = structlog.processors.JSONRenderer()
     else:
-        processors.append(structlog.dev.ConsoleRenderer(colors=True))
+        renderer = structlog.dev.ConsoleRenderer(colors=True)
 
+    # Configure structlog to use stdlib
     structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+        processors=shared_processors
+        + [
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
 
+    # Create formatter that renders structlog events
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            renderer,
+        ],
+    )
 
-def get_logger(name: str) -> structlog.BoundLogger:
+    # Configure root logger with our formatter
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+
+    # File handler (if specified)
+    if log_file:
+        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+
+
+def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """Get a logger instance for a module.
 
     Args:
@@ -70,7 +92,7 @@ def get_logger(name: str) -> structlog.BoundLogger:
     Returns:
         Bound logger with context support
     """
-    logger: structlog.BoundLogger = structlog.get_logger(name)
+    logger: structlog.stdlib.BoundLogger = structlog.get_logger(name)
     return logger
 
 

@@ -535,115 +535,8 @@ class TestSummarizationMiddleware:
 
         assert SummarizationMiddleware is not None
 
-    def test_agent_uses_summarization_middleware(self, tmp_path):
-        """Agent is created with SummarizationMiddleware."""
-        from unittest.mock import MagicMock, patch
-
-        from langchain.agents.middleware import SummarizationMiddleware
-
-        from src.workflows.job_search import agent
-
-        # Set up temp paths
-        memories_dir = tmp_path / "memories"
-        jobs_file = memories_dir / "jobs.md"
-        seen_urls_file = memories_dir / "seen_urls.txt"
-
-        mock_llm = MagicMock()
-        mock_llm.profile = {"max_input_tokens": 131072}
-
-        captured_kwargs = {}
-
-        def capture_create_deep_agent(**kwargs):
-            captured_kwargs.update(kwargs)
-            return MagicMock()
-
-        with (
-            patch.object(agent, "MEMORIES_DIR", memories_dir),
-            patch.object(agent, "JOBS_FILE", jobs_file),
-            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
-            patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm),
-            patch(
-                "src.workflows.job_search.agent.create_deep_agent",
-                side_effect=capture_create_deep_agent,
-            ),
-        ):
-            agent.create_job_search_agent()
-
-            # Verify middleware was passed
-            assert "middleware" in captured_kwargs
-            middleware_list = captured_kwargs["middleware"]
-            assert len(middleware_list) == 1
-            assert isinstance(middleware_list[0], SummarizationMiddleware)
-
-    def test_summarization_trigger_uses_fraction(self, tmp_path):
-        """SummarizationMiddleware trigger uses fraction-based config."""
-        from unittest.mock import MagicMock, patch
-
-        from src.workflows.job_search import agent
-
-        memories_dir = tmp_path / "memories"
-        jobs_file = memories_dir / "jobs.md"
-        seen_urls_file = memories_dir / "seen_urls.txt"
-
-        mock_llm = MagicMock()
-        mock_llm.profile = {"max_input_tokens": 131072}
-
-        captured_kwargs = {}
-
-        def capture_create_deep_agent(**kwargs):
-            captured_kwargs.update(kwargs)
-            return MagicMock()
-
-        with (
-            patch.object(agent, "MEMORIES_DIR", memories_dir),
-            patch.object(agent, "JOBS_FILE", jobs_file),
-            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
-            patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm),
-            patch(
-                "src.workflows.job_search.agent.create_deep_agent",
-                side_effect=capture_create_deep_agent,
-            ),
-        ):
-            agent.create_job_search_agent()
-
-            middleware = captured_kwargs["middleware"][0]
-            # Verify trigger is fraction-based at 75%
-            assert middleware.trigger == ("fraction", 0.75)
-
-    def test_summarization_keeps_20_messages(self, tmp_path):
-        """SummarizationMiddleware keeps 20 recent messages."""
-        from unittest.mock import MagicMock, patch
-
-        from src.workflows.job_search import agent
-
-        memories_dir = tmp_path / "memories"
-        jobs_file = memories_dir / "jobs.md"
-        seen_urls_file = memories_dir / "seen_urls.txt"
-
-        mock_llm = MagicMock()
-        mock_llm.profile = {"max_input_tokens": 131072}
-
-        captured_kwargs = {}
-
-        def capture_create_deep_agent(**kwargs):
-            captured_kwargs.update(kwargs)
-            return MagicMock()
-
-        with (
-            patch.object(agent, "MEMORIES_DIR", memories_dir),
-            patch.object(agent, "JOBS_FILE", jobs_file),
-            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
-            patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm),
-            patch(
-                "src.workflows.job_search.agent.create_deep_agent",
-                side_effect=capture_create_deep_agent,
-            ),
-        ):
-            agent.create_job_search_agent()
-
-            middleware = captured_kwargs["middleware"][0]
-            # Verify keep is set to 20 messages
-            assert middleware.keep == ("messages", 20)
+    # Note: Tests for explicit middleware configuration removed.
+    # Deep agents adds SummarizationMiddleware by default, so we rely on that.
 
 
 # =============================================================================
@@ -674,3 +567,219 @@ def test_blocked_domains_list():
     expected = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com"]
     for domain in expected:
         assert domain in BLOCKED_DOMAINS
+
+
+# =============================================================================
+# tools.py - Retry Behavior
+# =============================================================================
+
+
+class TestRetryBehavior:
+    """Tests for retry logic with tenacity."""
+
+    @pytest.mark.asyncio
+    async def test_retries_on_transient_failure(self, tmp_path):
+        """Retries search on transient failures and succeeds."""
+        from unittest.mock import AsyncMock, patch
+
+        from src.workflows.job_search import tools
+
+        # Mock wrapper that fails twice then succeeds
+        mock_results = [
+            {"title": "Result 1", "link": "https://example.com/1", "snippet": "test"},
+        ]
+
+        call_count = 0
+
+        async def failing_then_success(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise ConnectionError("Transient failure")
+            return mock_results
+
+        mock_wrapper = AsyncMock()
+        mock_wrapper.aresults = failing_then_success
+
+        seen_urls_file = tmp_path / "seen_urls.txt"
+        seen_urls_file.touch()
+
+        with (
+            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
+            patch.object(tools, "langfuse"),
+        ):
+            # Reset retry state by reimporting
+            from src.workflows.job_search.tools import web_search
+
+            result = await web_search.ainvoke({"query": "test query"})
+
+            assert call_count == 3
+            assert "Result 1" in result
+
+    @pytest.mark.asyncio
+    async def test_fails_after_max_retries(self, tmp_path):
+        """Returns error message after exhausting all retries."""
+        from unittest.mock import AsyncMock, patch
+
+        from src.workflows.job_search import tools
+
+        mock_wrapper = AsyncMock()
+        mock_wrapper.aresults = AsyncMock(side_effect=ConnectionError("Persistent failure"))
+
+        seen_urls_file = tmp_path / "seen_urls.txt"
+        seen_urls_file.touch()
+
+        with (
+            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
+            patch.object(tools, "langfuse"),
+        ):
+            from src.workflows.job_search.tools import web_search
+
+            result = await web_search.ainvoke({"query": "test query"})
+
+            assert "Search failed after retries" in result
+
+
+# =============================================================================
+# tools.py - Result Buffering
+# =============================================================================
+
+
+class TestResultBuffering:
+    """Tests for result buffering (request 2x, return 10)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_max_10_results(self, tmp_path):
+        """Returns at most 10 results even when more are available."""
+        from unittest.mock import AsyncMock, patch
+
+        from src.workflows.job_search import tools
+
+        # Create 20 mock results
+        mock_results = [
+            {"title": f"Result {i}", "link": f"https://example.com/{i}", "snippet": f"test {i}"}
+            for i in range(20)
+        ]
+
+        mock_wrapper = AsyncMock()
+        mock_wrapper.aresults = AsyncMock(return_value=mock_results)
+
+        seen_urls_file = tmp_path / "seen_urls.txt"
+        seen_urls_file.touch()
+
+        with (
+            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
+            patch.object(tools, "langfuse"),
+        ):
+            from src.workflows.job_search.tools import web_search
+
+            result = await web_search.ainvoke({"query": "test query"})
+
+            # Count number of results by counting the separators
+            result_count = result.count("---") + 1 if "---" in result else 1
+            assert result_count <= 10
+
+
+# =============================================================================
+# tools.py - Langfuse Metadata
+# =============================================================================
+
+
+class TestLangfuseMetadata:
+    """Tests for Langfuse span metadata."""
+
+    @pytest.mark.asyncio
+    async def test_logs_search_metrics_to_langfuse(self, tmp_path):
+        """Logs results_original, results_after_filter, seen_urls_filtered."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from src.workflows.job_search import tools
+
+        mock_results = [
+            {"title": "Result 1", "link": "https://example.com/1", "snippet": "test"},
+            {"title": "Result 2", "link": "https://example.com/2", "snippet": "test"},
+            {"title": "Seen Result", "link": "https://seen.com/1", "snippet": "already seen"},
+        ]
+
+        mock_wrapper = AsyncMock()
+        mock_wrapper.aresults = AsyncMock(return_value=mock_results)
+
+        seen_urls_file = tmp_path / "seen_urls.txt"
+        seen_urls_file.write_text("https://seen.com/1\n")
+
+        mock_langfuse = MagicMock()
+
+        with (
+            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
+            patch.object(tools, "langfuse", mock_langfuse),
+        ):
+            from src.workflows.job_search.tools import web_search
+
+            await web_search.ainvoke({"query": "test query"})
+
+            # Verify update_current_span was called with correct metadata
+            mock_langfuse.update_current_span.assert_called_once()
+            call_kwargs = mock_langfuse.update_current_span.call_args[1]
+            metadata = call_kwargs["metadata"]
+
+            assert metadata["results_original"] == 3
+            assert metadata["results_after_filter"] == 2
+            assert metadata["seen_urls_filtered"] == 1
+
+
+# =============================================================================
+# tools.py - Configurable Engines
+# =============================================================================
+
+
+class TestConfigurableEngines:
+    """Tests for configurable search engines from settings."""
+
+    def test_wrapper_uses_engines_from_config(self):
+        """get_wrapper() creates wrapper with engines from settings."""
+        from unittest.mock import MagicMock, patch
+
+        from src.workflows.job_search import tools
+
+        # Reset the global wrapper
+        tools._wrapper = None
+
+        mock_settings = MagicMock()
+        mock_settings.searxng_host = "http://localhost:8080"
+        mock_settings.searxng_engines = "brave,qwant"
+        mock_settings.search_result_buffer = 2.0
+
+        with patch.object(tools, "settings", mock_settings):
+            wrapper = tools.get_wrapper()
+
+            assert wrapper.engines == ["brave", "qwant"]
+            assert wrapper.k == 20  # 10 * 2.0
+
+        # Clean up
+        tools._wrapper = None
+
+    def test_wrapper_uses_buffer_multiplier(self):
+        """get_wrapper() applies search_result_buffer to k."""
+        from unittest.mock import MagicMock, patch
+
+        from src.workflows.job_search import tools
+
+        # Reset the global wrapper
+        tools._wrapper = None
+
+        mock_settings = MagicMock()
+        mock_settings.searxng_host = "http://localhost:8080"
+        mock_settings.searxng_engines = "duckduckgo"
+        mock_settings.search_result_buffer = 3.0
+
+        with patch.object(tools, "settings", mock_settings):
+            wrapper = tools.get_wrapper()
+
+            assert wrapper.k == 30  # 10 * 3.0
+
+        # Clean up
+        tools._wrapper = None
