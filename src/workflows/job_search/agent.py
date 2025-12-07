@@ -12,6 +12,7 @@ from pathlib import Path
 import yaml
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
+from langchain.agents.middleware import SummarizationMiddleware
 
 from src.core.llm import get_agent_llm
 from src.workflows.job_search.tools import fetch, web_search
@@ -92,6 +93,11 @@ def create_job_search_agent():
         subagents=[RESEARCH_SUBAGENT],
         system_prompt=SYSTEM_PROMPT,
         backend=lambda rt: FilesystemBackend(root_dir=DATA_DIR, virtual_mode=True),
-        # Note: general_purpose_agent is controlled by SubAgentMiddleware, not create_deep_agent
-        # The prompt guides the agent to use the research subagent by name
+        middleware=[
+            SummarizationMiddleware(
+                model=llm,
+                trigger=("fraction", 0.75),  # 75% of model's context (uses llm.profile)
+                keep=("messages", 20),
+            ),
+        ],
     )

@@ -330,6 +330,217 @@ class TestFetchBlocking:
 
 
 # =============================================================================
+# tools.py - Incomplete Results Filtering
+# =============================================================================
+
+
+class TestIncompleteResultsFiltering:
+    """Tests for filtering incomplete search results."""
+
+    @pytest.mark.asyncio
+    async def test_filters_results_missing_title(self, tmp_path):
+        """Results without title are filtered out."""
+        from unittest.mock import AsyncMock, patch
+
+        from src.workflows.job_search import tools
+
+        # Mock search results with one incomplete (no title)
+        mock_results = [
+            {"title": "Good Result", "link": "https://example.com/good", "snippet": "Has title"},
+            {"link": "https://example.com/bad", "snippet": "Missing title"},  # No title
+        ]
+
+        mock_wrapper = AsyncMock()
+        mock_wrapper.aresults = AsyncMock(return_value=mock_results)
+
+        seen_urls_file = tmp_path / "seen_urls.txt"
+        seen_urls_file.touch()
+
+        with patch.object(tools, "get_wrapper", return_value=mock_wrapper), \
+             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file):
+            from src.workflows.job_search.tools import web_search
+
+            result = await web_search.ainvoke({"query": "test query"})
+
+            # Should only include the good result
+            assert "Good Result" in result
+            assert "https://example.com/good" in result
+            # Should NOT include the bad result
+            assert "https://example.com/bad" not in result
+
+    @pytest.mark.asyncio
+    async def test_filters_results_missing_link(self, tmp_path):
+        """Results without link are filtered out."""
+        from unittest.mock import AsyncMock, patch
+
+        from src.workflows.job_search import tools
+
+        # Mock search results with one incomplete (no link)
+        mock_results = [
+            {"title": "Good Result", "link": "https://example.com/good", "snippet": "Has link"},
+            {"title": "Bad Result", "snippet": "Missing link"},  # No link
+        ]
+
+        mock_wrapper = AsyncMock()
+        mock_wrapper.aresults = AsyncMock(return_value=mock_results)
+
+        seen_urls_file = tmp_path / "seen_urls.txt"
+        seen_urls_file.touch()
+
+        with patch.object(tools, "get_wrapper", return_value=mock_wrapper), \
+             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file):
+            from src.workflows.job_search.tools import web_search
+
+            result = await web_search.ainvoke({"query": "test query"})
+
+            # Should only include the good result
+            assert "Good Result" in result
+            # Should NOT include the bad result (even though it has a title)
+            assert "Bad Result" not in result
+
+    @pytest.mark.asyncio
+    async def test_returns_message_when_all_results_incomplete(self, tmp_path):
+        """Returns helpful message when all results are incomplete."""
+        from unittest.mock import AsyncMock, patch
+
+        from src.workflows.job_search import tools
+
+        # All results missing required fields
+        mock_results = [
+            {"snippet": "No title or link"},
+            {"title": "Only title"},
+        ]
+
+        mock_wrapper = AsyncMock()
+        mock_wrapper.aresults = AsyncMock(return_value=mock_results)
+
+        seen_urls_file = tmp_path / "seen_urls.txt"
+        seen_urls_file.touch()
+
+        with patch.object(tools, "get_wrapper", return_value=mock_wrapper), \
+             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file):
+            from src.workflows.job_search.tools import web_search
+
+            result = await web_search.ainvoke({"query": "test query"})
+
+            assert "No complete results found" in result
+            assert "partial data" in result
+
+
+# =============================================================================
+# agent.py - SummarizationMiddleware Configuration
+# =============================================================================
+
+
+class TestSummarizationMiddleware:
+    """Tests for SummarizationMiddleware configuration in agent."""
+
+    def test_middleware_import_works(self):
+        """Verify SummarizationMiddleware can be imported."""
+        from langchain.agents.middleware import SummarizationMiddleware
+
+        assert SummarizationMiddleware is not None
+
+    def test_agent_uses_summarization_middleware(self, tmp_path):
+        """Agent is created with SummarizationMiddleware."""
+        from unittest.mock import MagicMock, patch
+
+        from langchain.agents.middleware import SummarizationMiddleware
+
+        from src.workflows.job_search import agent
+
+        # Set up temp paths
+        memories_dir = tmp_path / "memories"
+        jobs_file = memories_dir / "jobs.md"
+        seen_urls_file = memories_dir / "seen_urls.txt"
+
+        mock_llm = MagicMock()
+        mock_llm.profile = {"max_input_tokens": 131072}
+
+        captured_kwargs = {}
+
+        def capture_create_deep_agent(**kwargs):
+            captured_kwargs.update(kwargs)
+            return MagicMock()
+
+        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
+             patch.object(agent, "JOBS_FILE", jobs_file), \
+             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file), \
+             patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm), \
+             patch("src.workflows.job_search.agent.create_deep_agent", side_effect=capture_create_deep_agent):
+
+            agent.create_job_search_agent()
+
+            # Verify middleware was passed
+            assert "middleware" in captured_kwargs
+            middleware_list = captured_kwargs["middleware"]
+            assert len(middleware_list) == 1
+            assert isinstance(middleware_list[0], SummarizationMiddleware)
+
+    def test_summarization_trigger_uses_fraction(self, tmp_path):
+        """SummarizationMiddleware trigger uses fraction-based config."""
+        from unittest.mock import MagicMock, patch
+
+        from src.workflows.job_search import agent
+
+        memories_dir = tmp_path / "memories"
+        jobs_file = memories_dir / "jobs.md"
+        seen_urls_file = memories_dir / "seen_urls.txt"
+
+        mock_llm = MagicMock()
+        mock_llm.profile = {"max_input_tokens": 131072}
+
+        captured_kwargs = {}
+
+        def capture_create_deep_agent(**kwargs):
+            captured_kwargs.update(kwargs)
+            return MagicMock()
+
+        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
+             patch.object(agent, "JOBS_FILE", jobs_file), \
+             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file), \
+             patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm), \
+             patch("src.workflows.job_search.agent.create_deep_agent", side_effect=capture_create_deep_agent):
+
+            agent.create_job_search_agent()
+
+            middleware = captured_kwargs["middleware"][0]
+            # Verify trigger is fraction-based at 75%
+            assert middleware.trigger == ("fraction", 0.75)
+
+    def test_summarization_keeps_20_messages(self, tmp_path):
+        """SummarizationMiddleware keeps 20 recent messages."""
+        from unittest.mock import MagicMock, patch
+
+        from src.workflows.job_search import agent
+
+        memories_dir = tmp_path / "memories"
+        jobs_file = memories_dir / "jobs.md"
+        seen_urls_file = memories_dir / "seen_urls.txt"
+
+        mock_llm = MagicMock()
+        mock_llm.profile = {"max_input_tokens": 131072}
+
+        captured_kwargs = {}
+
+        def capture_create_deep_agent(**kwargs):
+            captured_kwargs.update(kwargs)
+            return MagicMock()
+
+        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
+             patch.object(agent, "JOBS_FILE", jobs_file), \
+             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file), \
+             patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm), \
+             patch("src.workflows.job_search.agent.create_deep_agent", side_effect=capture_create_deep_agent):
+
+            agent.create_job_search_agent()
+
+            middleware = captured_kwargs["middleware"][0]
+            # Verify keep is set to 20 messages
+            assert middleware.keep == ("messages", 20)
+
+
+# =============================================================================
 # Smoke Tests (verify imports work)
 # =============================================================================
 

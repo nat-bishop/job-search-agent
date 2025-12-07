@@ -10,10 +10,37 @@ This provides more reliable tool calling because:
 from functools import lru_cache
 from typing import Any
 
+import httpx
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
 
 from src.core.config import settings
+
+
+@lru_cache(maxsize=8)
+def get_model_context_length(model: str) -> int:
+    """Query Ollama for model's context length. Cached per model name.
+
+    Args:
+        model: The Ollama model name (e.g., "gpt-oss:120b").
+
+    Returns:
+        Context length in tokens. Falls back to 131072 if query fails.
+    """
+    url = f"{settings.ollama_url}/api/show"
+
+    try:
+        resp = httpx.post(url, json={"name": model}, timeout=5.0)
+        resp.raise_for_status()
+        data = resp.json()
+        # Context length is nested in model_info
+        context_length = data.get("model_info", {}).get("context_length")
+        if context_length:
+            return int(context_length)
+    except Exception:
+        pass
+
+    return 131072  # Safe fallback
 
 
 def get_llm(*, temperature: float = 0.0, **kwargs: Any) -> BaseChatModel:
@@ -39,13 +66,19 @@ def get_llm(*, temperature: float = 0.0, **kwargs: Any) -> BaseChatModel:
     # Ollama exposes OpenAI-compatible API at /v1
     base_url = settings.ollama_url.rstrip("/") + "/v1"
 
-    return ChatOpenAI(
+    model = ChatOpenAI(
         model=settings.local_model,
         base_url=base_url,
         api_key=SecretStr("ollama"),  # Required by ChatOpenAI but ignored by Ollama
         temperature=temperature,
         **kwargs,
     )
+
+    # Set profile for LangChain middleware (enables fraction-based triggers)
+    context_length = get_model_context_length(settings.local_model)
+    model.profile = {"max_input_tokens": context_length}
+
+    return model
 
 
 @lru_cache(maxsize=1)

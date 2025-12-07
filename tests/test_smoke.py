@@ -14,12 +14,18 @@ def test_config_loads():
 
 def test_llm_factory_imports():
     """Verify LLM factory can be imported."""
-    from src.core.llm import get_agent_llm, get_default_llm, get_llm
+    from src.core.llm import (
+        get_agent_llm,
+        get_default_llm,
+        get_llm,
+        get_model_context_length,
+    )
 
     # Functions should be callable
     assert callable(get_llm)
     assert callable(get_default_llm)
     assert callable(get_agent_llm)
+    assert callable(get_model_context_length)
 
 
 def test_tracing_optional():

@@ -79,6 +79,12 @@ async def web_search(query: str) -> str:
     if not results:
         return "No results found. Try different search terms."
 
+    # Filter incomplete results (upstream SearxSearchWrapper bug - some engines return partial data)
+    results = [r for r in results if r.get("title") and r.get("link")]
+
+    if not results:
+        return "No complete results found (some engines returned partial data). Try different search terms."
+
     # Filter out already-seen URLs BEFORE returning to LLM (shift-left deduplication)
     seen_urls = _load_seen_urls()
     results = [r for r in results if r.get("link", "") not in seen_urls]
