@@ -23,5 +23,9 @@ class Settings(BaseSettings):
     # Database (PostgreSQL for LangGraph Store, optional)
     database_url: str | None = Field(default=None)
 
+    # Logging
+    log_file: str | None = Field(default="logs/ai-agents.jsonl")
+    log_json: bool = Field(default=True)  # JSON format for file, console stays readable
+
 
 settings = Settings()

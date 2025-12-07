@@ -34,6 +34,7 @@ Multi-agent workflows add:
 - `src/core/config.py` → `settings` object, loads from `.env`
 - `src/core/llm.py` → `get_llm()` factory for local Ollama models
 - `src/core/tracing.py` → `get_langfuse_handler()` for LLM tracing (optional)
+- `src/core/logging.py` → `get_logger()`, `bind_trace_id()` for structured logging
 
 ## Environment Setup
 
@@ -80,6 +81,9 @@ pre-commit run --all-files    # Run all hooks manually
 ruff check src/ --fix         # Lint with auto-fix
 ruff format src/              # Format
 mypy src/                     # Type check
+
+# Dead code detection (only when user requests)
+vulture src/ tests/           # Find unused code
 ```
 
 ## Principles
@@ -171,6 +175,36 @@ response = agent.invoke(
 Note: `tracing.py` loads `.env` via dotenv before importing Langfuse (required - Langfuse reads env vars at import time).
 
 View traces: http://localhost:3000
+
+### Logging
+
+Uses `structlog` with Langfuse trace correlation. Logs automatically include `trace_id` when bound.
+
+**Add logging to new code:**
+```python
+from src.core.logging import get_logger
+
+logger = get_logger(__name__)
+
+logger.info("operation_start", key="value")
+logger.warning("something_failed", error=str(e))
+```
+
+**Trace correlation** - bind trace_id at the start of agent runs:
+```python
+from src.core.logging import bind_trace_id, clear_trace_context
+
+bind_trace_id(langfuse.get_current_trace_id())  # All logs now have trace_id
+# ... run agent ...
+clear_trace_context()  # Clean up at end
+```
+
+**View logs:**
+- Console: Real-time colored output (dev mode)
+- File: `logs/ai-agents.jsonl` (JSON, one per line)
+- Langfuse: Search by trace_id at http://localhost:3000
+
+**Find logs for a trace:** `grep "abc123" logs/ai-agents.jsonl`
 
 ## Job Search Workflow
 

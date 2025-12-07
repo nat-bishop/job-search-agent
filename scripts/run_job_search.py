@@ -14,7 +14,12 @@ Run:
 import asyncio
 
 from src.core.config import settings
+from src.core.logging import bind_trace_id, clear_trace_context, get_logger, setup_logging
 from src.core.tracing import get_langfuse_handler
+
+# Initialize logging before anything else
+setup_logging(json_logs=settings.log_json, log_file=settings.log_file)
+logger = get_logger("job_search")
 
 
 def print_flush(msg: str = ""):
@@ -107,6 +112,7 @@ async def main():
         if langfuse_handler:
             print_flush("Langfuse tracing enabled")
     except Exception as e:
+        logger.error("agent_init_failed", error=str(e))
         print_flush(f"\n[ERROR] Failed to initialize agent: {e}")
         print_flush("\nMake sure services are running: docker compose up -d")
         return
@@ -118,23 +124,58 @@ async def main():
     print_flush("Starting job search (streaming output enabled)...")
     print_flush("-" * 60)
 
+    # Get Langfuse client for trace ID binding (if available)
+    langfuse = None
+    if langfuse_handler:
+        try:
+            from langfuse import get_client
+
+            langfuse = get_client()
+        except Exception:
+            pass  # Continue without trace_id binding
+
     try:
         # Stream events for real-time progress
         final_content = None
         config = {"callbacks": [langfuse_handler]} if langfuse_handler else {}
-        async for event in agent.astream(
-            {"messages": [{"role": "user", "content": task}]},
-            config=config,
-            subgraphs=True,  # Stream subagent events too
-        ):
-            print_event(event)
 
-            # Capture final message
-            if "agent" in event:
-                messages = event["agent"].get("messages", [])
-                for msg in messages:
-                    if hasattr(msg, "content") and isinstance(msg.content, str):
-                        final_content = msg.content
+        # Wrap in Langfuse span to get trace_id for log correlation
+        if langfuse:
+            with langfuse.start_as_current_observation(as_type="span", name="job-search-run"):
+                trace_id = langfuse.get_current_trace_id()
+                bind_trace_id(trace_id)
+                logger.info("job_search_start", model=settings.local_model)
+                print_flush(f"Trace ID: {trace_id}")
+
+                async for event in agent.astream(
+                    {"messages": [{"role": "user", "content": task}]},
+                    config=config,
+                    subgraphs=True,
+                ):
+                    print_event(event)
+                    if "agent" in event:
+                        messages = event["agent"].get("messages", [])
+                        for msg in messages:
+                            if hasattr(msg, "content") and isinstance(msg.content, str):
+                                final_content = msg.content
+
+                logger.info("job_search_complete")
+                clear_trace_context()
+        else:
+            # No Langfuse - run without trace correlation
+            logger.info("job_search_start", model=settings.local_model)
+            async for event in agent.astream(
+                {"messages": [{"role": "user", "content": task}]},
+                config=config,
+                subgraphs=True,
+            ):
+                print_event(event)
+                if "agent" in event:
+                    messages = event["agent"].get("messages", [])
+                    for msg in messages:
+                        if hasattr(msg, "content") and isinstance(msg.content, str):
+                            final_content = msg.content
+            logger.info("job_search_complete")
 
         print_flush("\n" + "=" * 60)
         print_flush("JOB SEARCH RESULTS")
@@ -155,8 +196,10 @@ async def main():
         print_flush("=" * 60)
 
     except KeyboardInterrupt:
+        logger.info("job_search_interrupted")
         print_flush("\n\nSearch interrupted by user")
     except Exception as e:
+        logger.error("job_search_failed", error=str(e))
         print_flush(f"\n[ERROR] Search failed: {e}")
         import traceback
 

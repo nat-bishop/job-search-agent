@@ -15,6 +15,9 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
 
 from src.core.config import settings
+from src.core.logging import get_logger
+
+logger = get_logger("llm")
 
 
 @lru_cache(maxsize=8)
@@ -36,9 +39,10 @@ def get_model_context_length(model: str) -> int:
         # Context length is nested in model_info
         context_length = data.get("model_info", {}).get("context_length")
         if context_length:
+            logger.debug("context_length_detected", model=model, length=context_length)
             return int(context_length)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("context_length_fallback", model=model, error=str(e))
 
     return 131072  # Safe fallback
 

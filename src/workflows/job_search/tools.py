@@ -31,6 +31,9 @@ from langchain_community.utilities import SearxSearchWrapper
 from langchain_core.tools import tool
 
 from src.core.config import settings
+from src.core.logging import get_logger
+
+logger = get_logger("tools")
 
 # Path to seen URLs file (same data dir as agent's filesystem)
 SEEN_URLS_PATH = Path(__file__).parent.parent.parent / "data" / "memories" / "seen_urls.txt"
@@ -114,8 +117,8 @@ def get_wrapper() -> SearxSearchWrapper:
         _wrapper = SearxSearchWrapper(
             searx_host=settings.searxng_host,
             k=15,  # Fetch more, filter later
-            # Use engines that work reliably (google/bing often blocked, duckduckgo times out)
-            engines=["brave", "startpage", "qwant", "google"],
+            # Use only DuckDuckGo - other engines are rate-limited
+            engines=["duckduckgo"],
         )
     return _wrapper
 
@@ -135,6 +138,7 @@ async def web_search(
     Returns:
         Search results with titles, URLs, and snippets
     """
+    logger.info("web_search_start", query=query, time_range=time_range)
     wrapper = get_wrapper()
 
     # Build additional params for SearXNG API
@@ -150,30 +154,41 @@ async def web_search(
             **params,  # type: ignore[arg-type]
         )
     except Exception as e:
+        logger.warning("web_search_failed", query=query, error=str(e))
         return f"Search failed: {e}. Try a different query."
 
     if not results:
+        logger.warning("web_search_no_results", query=query, reason="empty_response")
         return "No results found. Try different search terms."
 
     # Filter incomplete results (upstream SearxSearchWrapper bug - some engines return partial data)
-    results = [r for r in results if r.get("title") and r.get("link")]
+    complete_results = [r for r in results if r.get("title") and r.get("link")]
 
-    if not results:
+    if not complete_results:
+        logger.warning("web_search_no_results", query=query, reason="incomplete_data")
         return "No complete results found (some engines returned partial data). Try different search terms."
 
     # Filter out already-seen URLs BEFORE returning to LLM (shift-left deduplication)
     seen_urls = _load_seen_urls()
-    results = [r for r in results if r.get("link", "") not in seen_urls]
+    new_results = [r for r in complete_results if r.get("link", "") not in seen_urls]
 
-    if not results:
+    if not new_results:
+        logger.info("web_search_all_seen", query=query, total=len(complete_results))
         return "No NEW results found (all URLs already processed). Try different search terms."
 
     # Limit to 10 results after filtering
-    results = results[:10]
+    new_results = new_results[:10]
+
+    logger.info(
+        "web_search_complete",
+        query=query,
+        total_results=len(results),
+        new_results=len(new_results),
+    )
 
     # Format results
     output = []
-    for r in results:
+    for r in new_results:
         title = r.get("title", "No title")
         url = r.get("link", "")
         snippet = r.get("snippet", "")[:300]
@@ -214,9 +229,11 @@ async def fetch(url: str) -> str:
     """
     # Auto-prepend https:// if missing
     url = _normalize_url(url)
+    logger.info("fetch_start", url=url)
 
     # Skip social media (require authentication)
     if any(domain in url.lower() for domain in BLOCKED_DOMAINS):
+        logger.info("fetch_blocked", url=url, reason="social_media")
         return f"Skipped social media URL (requires authentication): {url}"
 
     # Modify Reddit URLs for better scraping
@@ -237,6 +254,7 @@ async def fetch(url: str) -> str:
             content = pymupdf4llm.to_markdown(doc)
             doc.close()
             content = _clean_text(content)
+            content_type = "pdf"
         else:
             # HTML - use Trafilatura (fast, handles most pages well)
             html_content = response.text
@@ -253,23 +271,30 @@ async def fetch(url: str) -> str:
                 content = soup.get_text(separator="\n", strip=True)
 
             content = _clean_text(content) if content else ""
+            content_type = "html"
 
         if not content:
+            logger.warning("fetch_no_content", url=url)
             return f"Page loaded but no content extracted: {url}"
 
         # Word-based truncation (more predictable for LLM tokens)
+        word_count = len(content.split())
         content = _truncate_to_words(content, word_limit=5000)
 
         # Track this URL AFTER successful fetch
         _save_url(url)
 
+        logger.info("fetch_complete", url=url, content_type=content_type, words=word_count)
         return content
 
     except httpx.HTTPStatusError as e:
+        logger.warning("fetch_http_error", url=url, status=e.response.status_code)
         return f"HTTP error {e.response.status_code}: {url}"
     except httpx.RequestError as e:
+        logger.warning("fetch_request_error", url=url, error=str(e))
         return f"Request failed for {url}: {e}"
     except Exception as e:
+        logger.error("fetch_error", url=url, error=str(e))
         return f"Failed to fetch page {url}: {e}"
 
 
