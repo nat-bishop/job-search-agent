@@ -8,10 +8,11 @@ Prompts are loaded from YAML files for easier iteration.
 import os
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import yaml
-from deepagents import create_deep_agent
-from deepagents.backends import FilesystemBackend
+from deepagents import create_deep_agent  # type: ignore[import-untyped]
+from deepagents.backends import FilesystemBackend  # type: ignore[import-untyped]
 from langchain.agents.middleware import SummarizationMiddleware
 
 from src.core.llm import get_agent_llm
@@ -30,11 +31,11 @@ SEEN_URLS_FILE = MEMORIES_DIR / "seen_urls.txt"
 JOBS_HEADER = "# Bay Area New Grad RN Opportunities\n"
 
 
-def load_prompt(name: str) -> dict:
+def load_prompt(name: str) -> dict[str, Any]:
     """Load a prompt YAML file with variable injection."""
     path = os.path.join(PROMPTS_DIR, f"{name}.yaml")
     with open(path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data: dict[str, Any] = yaml.safe_load(f)
 
     # Inject current date into system_prompt
     if "system_prompt" in data:
@@ -67,6 +68,7 @@ RESEARCH_SUBAGENT = {
 # Agent Factory
 # =============================================================================
 
+
 def _init_memory_files() -> None:
     """Ensure memory files exist before agent starts.
 
@@ -82,7 +84,7 @@ def _init_memory_files() -> None:
         SEEN_URLS_FILE.touch()
 
 
-def create_job_search_agent():
+def create_job_search_agent() -> Any:
     """Create the job search agent with persistent local filesystem."""
     llm = get_agent_llm()
     _init_memory_files()

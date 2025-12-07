@@ -21,7 +21,7 @@ src/
 ├── workflows/      # Agent workflows by domain
 │   └── job_search/ # Nursing job search workflow
 │       ├── agent.py    # Deep agent + research subagent
-│       ├── tools.py    # web_search, fetch
+│       ├── tools.py    # web_search, fetch + aliases
 │       └── prompts/    # YAML prompt files
 ```
 
@@ -93,17 +93,43 @@ This matches the Deep Agents quickstart pattern and keeps tools focused while gi
 
 ```python
 @tool
-def web_search(query: str) -> str:
-    """Search the web using SearXNG.
+async def web_search(
+    query: str,
+    time_range: Literal["day", "week", "month", "year"] | None = None,
+) -> str:
+    """Search the web for information.
 
     Args:
-        query: Natural language search query
+        query: Search query string
+        time_range: Filter to recent results (day, week, month, year)
 
     Returns:
-        Search results with titles, URLs, and content snippets
+        Search results with titles, URLs, and snippets
     """
     # Implementation...
 ```
+
+**Tool Aliases** for model robustness:
+
+Different LLMs may be trained to call tools with different names. Aliases prevent tool-not-found errors:
+
+```python
+# Primary tool
+@tool
+async def web_search(query: str, time_range: str | None = None) -> str:
+    """Search the web."""
+    ...
+
+# Alias - delegates to primary
+@tool
+async def search(query: str, time_range: str | None = None) -> str:
+    """Search the web. Alias for web_search."""
+    return await web_search.ainvoke({"query": query, "time_range": time_range})
+```
+
+Current aliases:
+- `search` -> `web_search`
+- `fetch_page` -> `fetch`
 
 **System Prompt Example** (contains usage guidance):
 
@@ -223,6 +249,17 @@ agent = create_deep_agent(
 - Pydantic Settings (configuration)
 - Ollama (local LLM serving, containerized)
 - Docker (optional, for Ollama with GPU passthrough)
+
+### Content Extraction Libraries
+
+The `fetch` tool uses a layered approach for content extraction:
+
+| Library | Use Case |
+|---------|----------|
+| **Trafilatura** | Primary HTML content extraction (fast, no browser) |
+| **BeautifulSoup** | Fallback when Trafilatura fails |
+| **pymupdf/pymupdf4llm** | PDF to Markdown conversion |
+| **httpx** | Async HTTP client with connection pooling |
 
 ## Infrastructure
 

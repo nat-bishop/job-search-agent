@@ -1,7 +1,7 @@
 """Tools for the job search workflow.
 
 Provides web search using SearXNG (self-hosted metasearch) and page fetching
-using Playwright for JavaScript-rendered content.
+using Trafilatura for fast content extraction with PDF support.
 
 Tools are async-compatible for parallel execution when the LLM
 calls multiple tools in a single response.
@@ -9,12 +9,24 @@ calls multiple tools in a single response.
 URL deduplication is handled automatically:
 - web_search filters out already-seen URLs before returning to LLM
 - fetch tracks URLs after successful fetch
+
+Tool Aliases:
+- web_search: also responds to "search", "find", "lookup", "search_web"
+- fetch: also responds to "fetch_page", "get_page", "scrape", "get_url"
 """
 
+import re
+import unicodedata
 from pathlib import Path
+from typing import Literal
+from urllib.parse import urlparse
 
-from langchain_community.document_loaders import AsyncChromiumLoader
-from langchain_community.document_transformers import Html2TextTransformer
+import filetype  # type: ignore[import-untyped]
+import httpx
+import pymupdf  # type: ignore[import-untyped]
+import pymupdf4llm  # type: ignore[import-untyped]
+import trafilatura
+from bs4 import BeautifulSoup
 from langchain_community.utilities import SearxSearchWrapper
 from langchain_core.tools import tool
 
@@ -25,6 +37,16 @@ SEEN_URLS_PATH = Path(__file__).parent.parent.parent / "data" / "memories" / "se
 
 # Domains that require authentication - can't scrape
 BLOCKED_DOMAINS = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com"]
+
+# User-Agent header to prevent blocking
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
+
+# Tool aliases for model robustness (different models may use different names)
+WEB_SEARCH_ALIASES = ["search", "find", "lookup", "search_web", "web"]
+FETCH_ALIASES = ["fetch_page", "get_page", "scrape", "get_url", "load_page", "fetch_url"]
 
 
 def _load_seen_urls() -> set[str]:
@@ -43,6 +65,44 @@ def _save_url(url: str) -> None:
     with open(SEEN_URLS_PATH, "a") as f:
         f.write(url + "\n")
 
+
+def _normalize_url(url: str) -> str:
+    """Ensure URL has a scheme (auto-prepend https:// if missing)."""
+    parsed = urlparse(url)
+    if not parsed.scheme:
+        return "https://" + url
+    return url
+
+
+def _modify_reddit_url(url: str) -> str:
+    """Convert reddit.com URLs to old.reddit.com for better scraping."""
+    match = re.match(r"^(https?://)(www\.)?(reddit\.com)(.*)$", url, re.IGNORECASE)
+    if match:
+        protocol = match.group(1)
+        path_and_query = match.group(4)
+        return f"{protocol}old.reddit.com{path_and_query}"
+    return url
+
+
+def _clean_text(text: str) -> str:
+    """Clean extracted text: normalize unicode, remove emojis, collapse whitespace."""
+    # Normalize unicode
+    lines = [unicodedata.normalize("NFKC", line).strip() for line in text.splitlines()]
+    # Remove empty lines and collapse multiple spaces
+    cleaned_lines = [re.sub(r"\s{2,}", " ", line) for line in lines if line]
+    # Remove emojis
+    text = "\n".join(cleaned_lines)
+    return "".join(c for c in text if not unicodedata.category(c).startswith("So")).strip()
+
+
+def _truncate_to_words(text: str, word_limit: int = 5000) -> str:
+    """Truncate text to a maximum number of words."""
+    words = text.split()
+    if len(words) <= word_limit:
+        return text
+    return " ".join(words[:word_limit]) + "\n\n[Content truncated...]"
+
+
 # Shared wrapper instance
 _wrapper: SearxSearchWrapper | None = None
 
@@ -53,7 +113,7 @@ def get_wrapper() -> SearxSearchWrapper:
     if _wrapper is None:
         _wrapper = SearxSearchWrapper(
             searx_host=settings.searxng_host,
-            k=10,
+            k=15,  # Fetch more, filter later
             # Use engines that work reliably (google/bing often blocked, duckduckgo times out)
             engines=["brave", "startpage", "qwant", "google"],
         )
@@ -61,18 +121,34 @@ def get_wrapper() -> SearxSearchWrapper:
 
 
 @tool
-async def web_search(query: str) -> str:
+async def web_search(
+    query: str,
+    time_range: Literal["day", "week", "month", "year"] | None = None,
+) -> str:
     """Search the web for information.
 
     Args:
         query: Search query string
+        time_range: Filter to recent results (day, week, month, year). Use "week"
+            or "month" for job searches to find recent postings.
 
     Returns:
         Search results with titles, URLs, and snippets
     """
     wrapper = get_wrapper()
+
+    # Build additional params for SearXNG API
+    params: dict[str, str] = {}
+    if time_range and time_range in ["day", "week", "month", "year"]:
+        params["time_range"] = time_range
+
     try:
-        results = await wrapper.aresults(query, num_results=10)
+        # LangChain's typing for aresults doesn't include **kwargs, but implementation accepts them
+        results = await wrapper.aresults(
+            query,
+            num_results=15,
+            **params,  # type: ignore[arg-type]
+        )
     except Exception as e:
         return f"Search failed: {e}. Try a different query."
 
@@ -92,6 +168,9 @@ async def web_search(query: str) -> str:
     if not results:
         return "No NEW results found (all URLs already processed). Try different search terms."
 
+    # Limit to 10 results after filtering
+    results = results[:10]
+
     # Format results
     output = []
     for r in results:
@@ -103,61 +182,130 @@ async def web_search(query: str) -> str:
     return "\n\n---\n\n".join(output)
 
 
-# Shared transformer instance
-_html2text: Html2TextTransformer | None = None
+# Shared httpx client for connection pooling
+_http_client: httpx.AsyncClient | None = None
 
 
-def get_html2text() -> Html2TextTransformer:
-    """Get or create the Html2TextTransformer instance."""
-    global _html2text
-    if _html2text is None:
-        _html2text = Html2TextTransformer()
-    return _html2text
+def get_http_client() -> httpx.AsyncClient:
+    """Get or create the shared httpx AsyncClient."""
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(
+            headers={"User-Agent": USER_AGENT},
+            follow_redirects=True,
+            timeout=30.0,
+        )
+    return _http_client
 
 
 @tool
 async def fetch(url: str) -> str:
-    """Fetch and extract text content from a webpage.
+    """Fetch and extract text content from a webpage or PDF.
 
-    Uses Playwright to render JavaScript, so works with dynamic pages.
+    Uses Trafilatura for fast content extraction. Supports PDFs by converting
+    them to Markdown. Falls back to BeautifulSoup for pages where Trafilatura
+    fails.
 
     Args:
-        url: The URL to fetch
+        url: The URL to fetch (https:// is auto-prepended if missing)
 
     Returns:
-        Extracted text content from the page (truncated to ~10k chars)
+        Extracted text content (truncated to ~5000 words)
     """
+    # Auto-prepend https:// if missing
+    url = _normalize_url(url)
+
     # Skip social media (require authentication)
     if any(domain in url.lower() for domain in BLOCKED_DOMAINS):
         return f"Skipped social media URL (requires authentication): {url}"
 
-    # Skip PDFs (can't render)
-    if url.lower().endswith(".pdf"):
-        return f"Cannot fetch PDF files: {url}. Search for the HTML job posting page instead."
+    # Modify Reddit URLs for better scraping
+    fetch_url = _modify_reddit_url(url)
+
+    client = get_http_client()
 
     try:
-        loader = AsyncChromiumLoader([url])
-        docs = await loader.aload()
+        response = await client.get(fetch_url)
+        response.raise_for_status()
+        raw_content = response.content
 
-        if not docs:
-            return f"Failed to load page: {url}"
+        # Check if it's a PDF
+        kind = filetype.guess(raw_content)
+        if kind is not None and kind.mime == "application/pdf":
+            # Process PDF -> Markdown
+            doc = pymupdf.open(stream=raw_content, filetype="pdf")
+            content = pymupdf4llm.to_markdown(doc)
+            doc.close()
+            content = _clean_text(content)
+        else:
+            # HTML - use Trafilatura (fast, handles most pages well)
+            html_content = response.text
+            content = trafilatura.extract(
+                html_content,
+                favor_recall=True,  # Prefer more text when unsure
+                include_comments=False,
+                include_tables=True,
+            )
 
-        # Transform HTML to readable text
-        transformer = get_html2text()
-        docs = transformer.transform_documents(docs)
+            # Fallback to BeautifulSoup if Trafilatura fails
+            if not content:
+                soup = BeautifulSoup(html_content, "html.parser")
+                content = soup.get_text(separator="\n", strip=True)
 
-        content = docs[0].page_content if docs else ""
+            content = _clean_text(content) if content else ""
+
         if not content:
             return f"Page loaded but no content extracted: {url}"
 
-        # Truncate to avoid context overflow
-        if len(content) > 10000:
-            content = content[:10000] + "\n\n[Content truncated...]"
+        # Word-based truncation (more predictable for LLM tokens)
+        content = _truncate_to_words(content, word_limit=5000)
 
         # Track this URL AFTER successful fetch
         _save_url(url)
 
         return content
 
+    except httpx.HTTPStatusError as e:
+        return f"HTTP error {e.response.status_code}: {url}"
+    except httpx.RequestError as e:
+        return f"Request failed for {url}: {e}"
     except Exception as e:
-        return f"Failed to fetch page: {e}"
+        return f"Failed to fetch page {url}: {e}"
+
+
+# --- Tool Aliases ---
+# These provide alternative names for tools to handle model training variations.
+# Different LLMs may be trained to call tools with different names (e.g., "search"
+# vs "web_search"). Aliases prevent tool-not-found errors.
+
+
+@tool
+async def search(
+    query: str,
+    time_range: Literal["day", "week", "month", "year"] | None = None,
+) -> str:
+    """Search the web for information. Alias for web_search.
+
+    Args:
+        query: Search query string
+        time_range: Filter to recent results (day, week, month, year)
+
+    Returns:
+        Search results with titles, URLs, and snippets
+    """
+    result: str = await web_search.ainvoke({"query": query, "time_range": time_range})
+    return result
+
+
+@tool
+async def fetch_page(url: str) -> str:
+    """Fetch and extract text content from a webpage. Alias for fetch.
+
+    Args:
+        url: The URL to fetch
+
+    Returns:
+        Extracted text content
+    """
+    result: str = await fetch.ainvoke({"url": url})
+    return result

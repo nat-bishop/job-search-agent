@@ -4,7 +4,9 @@ Tests cover:
 - Memory file initialization (agent.py)
 - Prompt loading with date injection (agent.py)
 - URL tracking helpers (tools.py)
-- URL blocking for social media and PDFs (tools.py)
+- URL blocking for social media (tools.py)
+- URL normalization and text cleaning (tools.py)
+- Tool aliases (tools.py)
 """
 
 from datetime import date
@@ -29,10 +31,11 @@ class TestInitMemoryFiles:
         jobs_file = memories_dir / "jobs.md"
         seen_urls_file = memories_dir / "seen_urls.txt"
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+        ):
             agent._init_memory_files()
 
             assert memories_dir.exists()
@@ -47,10 +50,11 @@ class TestInitMemoryFiles:
         jobs_file = memories_dir / "jobs.md"
         seen_urls_file = memories_dir / "seen_urls.txt"
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+        ):
             agent._init_memory_files()
 
             content = jobs_file.read_text()
@@ -65,10 +69,11 @@ class TestInitMemoryFiles:
         jobs_file = memories_dir / "jobs.md"
         seen_urls_file = memories_dir / "seen_urls.txt"
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+        ):
             agent._init_memory_files()
 
             content = seen_urls_file.read_text()
@@ -87,10 +92,11 @@ class TestInitMemoryFiles:
         existing_content = "# Jobs\n\n## Stanford - RN Position\n- Important job!\n"
         jobs_file.write_text(existing_content)
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+        ):
             agent._init_memory_files()
 
             # Content should be preserved, not overwritten
@@ -109,10 +115,11 @@ class TestInitMemoryFiles:
         existing_urls = "https://example.com/job1\nhttps://example.com/job2\n"
         seen_urls_file.write_text(existing_urls)
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+        ):
             agent._init_memory_files()
 
             # URLs should be preserved
@@ -136,9 +143,7 @@ class TestLoadPrompt:
         prompts_dir.mkdir()
         test_prompt = prompts_dir / "test_prompt.yaml"
         test_prompt.write_text(
-            "system_prompt: |\n"
-            "  Today is {current_date}.\n"
-            "  Do the thing.\n"
+            "system_prompt: |\n" "  Today is {current_date}.\n" "  Do the thing.\n"
         )
 
         with patch.object(agent, "PROMPTS_DIR", str(prompts_dir)):
@@ -205,9 +210,7 @@ class TestLoadSeenUrls:
 
         urls_file = tmp_path / "urls.txt"
         urls_file.write_text(
-            "https://example.com/job1\n"
-            "https://example.com/job2\n"
-            "https://example.com/job3\n"
+            "https://example.com/job1\n" "https://example.com/job2\n" "https://example.com/job3\n"
         )
 
         with patch.object(tools, "SEEN_URLS_PATH", urls_file):
@@ -263,9 +266,7 @@ class TestFetchBlocking:
         """Blocks LinkedIn URLs with appropriate message."""
         from src.workflows.job_search.tools import fetch
 
-        result = await fetch.ainvoke(
-            {"url": "https://www.linkedin.com/jobs/view/12345"}
-        )
+        result = await fetch.ainvoke({"url": "https://www.linkedin.com/jobs/view/12345"})
         assert "Skipped social media" in result
         assert "authentication" in result
 
@@ -274,9 +275,7 @@ class TestFetchBlocking:
         """Blocks Instagram URLs."""
         from src.workflows.job_search.tools import fetch
 
-        result = await fetch.ainvoke(
-            {"url": "https://www.instagram.com/ucsfhealthcareers"}
-        )
+        result = await fetch.ainvoke({"url": "https://www.instagram.com/ucsfhealthcareers"})
         assert "Skipped social media" in result
 
     @pytest.mark.asyncio
@@ -284,9 +283,7 @@ class TestFetchBlocking:
         """Blocks Facebook URLs."""
         from src.workflows.job_search.tools import fetch
 
-        result = await fetch.ainvoke(
-            {"url": "https://www.facebook.com/StanfordHealth"}
-        )
+        result = await fetch.ainvoke({"url": "https://www.facebook.com/StanfordHealth"})
         assert "Skipped social media" in result
 
     @pytest.mark.asyncio
@@ -294,9 +291,7 @@ class TestFetchBlocking:
         """Blocks Twitter URLs."""
         from src.workflows.job_search.tools import fetch
 
-        result = await fetch.ainvoke(
-            {"url": "https://twitter.com/ucsfhealth"}
-        )
+        result = await fetch.ainvoke({"url": "https://twitter.com/ucsfhealth"})
         assert "Skipped social media" in result
 
     @pytest.mark.asyncio
@@ -307,26 +302,119 @@ class TestFetchBlocking:
         result = await fetch.ainvoke({"url": "https://x.com/ucsfhealth"})
         assert "Skipped social media" in result
 
-    @pytest.mark.asyncio
-    async def test_blocks_pdf_urls(self):
-        """Blocks PDF URLs with helpful message."""
-        from src.workflows.job_search.tools import fetch
 
-        result = await fetch.ainvoke(
-            {"url": "https://example.com/nurse-residency-flyer.pdf"}
+# =============================================================================
+# tools.py - URL Normalization and Text Cleaning
+# =============================================================================
+
+
+class TestUrlNormalization:
+    """Tests for _normalize_url() helper."""
+
+    def test_prepends_https_to_bare_domain(self):
+        """Auto-prepends https:// to URLs without scheme."""
+        from src.workflows.job_search.tools import _normalize_url
+
+        assert _normalize_url("example.com") == "https://example.com"
+        assert _normalize_url("indeed.com/jobs/123") == "https://indeed.com/jobs/123"
+
+    def test_preserves_existing_scheme(self):
+        """Keeps existing http:// or https:// scheme."""
+        from src.workflows.job_search.tools import _normalize_url
+
+        assert _normalize_url("https://example.com") == "https://example.com"
+        assert _normalize_url("http://example.com") == "http://example.com"
+
+
+class TestRedditUrlModification:
+    """Tests for _modify_reddit_url() helper."""
+
+    def test_converts_reddit_to_old_reddit(self):
+        """Converts reddit.com URLs to old.reddit.com."""
+        from src.workflows.job_search.tools import _modify_reddit_url
+
+        assert (
+            _modify_reddit_url("https://reddit.com/r/nursing") == "https://old.reddit.com/r/nursing"
         )
-        assert "Cannot fetch PDF" in result
-        assert "HTML" in result  # Suggests searching for HTML page instead
-
-    @pytest.mark.asyncio
-    async def test_blocks_pdf_urls_case_insensitive(self):
-        """PDF blocking is case-insensitive."""
-        from src.workflows.job_search.tools import fetch
-
-        result = await fetch.ainvoke(
-            {"url": "https://example.com/document.PDF"}
+        assert (
+            _modify_reddit_url("https://www.reddit.com/r/nursing")
+            == "https://old.reddit.com/r/nursing"
         )
-        assert "Cannot fetch PDF" in result
+
+    def test_leaves_non_reddit_urls_unchanged(self):
+        """Non-Reddit URLs are unchanged."""
+        from src.workflows.job_search.tools import _modify_reddit_url
+
+        assert _modify_reddit_url("https://example.com") == "https://example.com"
+
+
+class TestTextCleaning:
+    """Tests for _clean_text() helper."""
+
+    def test_removes_emojis(self):
+        """Removes emoji characters from text."""
+        from src.workflows.job_search.tools import _clean_text
+
+        result = _clean_text("Hello 👋 World 🌍")
+        assert "👋" not in result
+        assert "🌍" not in result
+        assert "Hello" in result
+        assert "World" in result
+
+    def test_collapses_whitespace(self):
+        """Collapses multiple spaces into one."""
+        from src.workflows.job_search.tools import _clean_text
+
+        result = _clean_text("Hello    World")
+        assert "    " not in result
+        assert "Hello World" in result
+
+
+class TestWordTruncation:
+    """Tests for _truncate_to_words() helper."""
+
+    def test_truncates_long_text(self):
+        """Truncates text exceeding word limit."""
+        from src.workflows.job_search.tools import _truncate_to_words
+
+        text = " ".join(["word"] * 100)
+        result = _truncate_to_words(text, word_limit=50)
+        assert result.count("word") == 50
+        assert "[Content truncated...]" in result
+
+    def test_preserves_short_text(self):
+        """Preserves text under word limit."""
+        from src.workflows.job_search.tools import _truncate_to_words
+
+        text = " ".join(["word"] * 10)
+        result = _truncate_to_words(text, word_limit=50)
+        assert result == text
+        assert "[Content truncated...]" not in result
+
+
+# =============================================================================
+# tools.py - Tool Aliases
+# =============================================================================
+
+
+class TestToolAliases:
+    """Tests for tool alias functionality."""
+
+    def test_search_alias_exists(self):
+        """search alias tool exists and is callable."""
+        from langchain_core.tools import StructuredTool
+
+        from src.workflows.job_search.tools import search
+
+        assert isinstance(search, StructuredTool)
+
+    def test_fetch_page_alias_exists(self):
+        """fetch_page alias tool exists and is callable."""
+        from langchain_core.tools import StructuredTool
+
+        from src.workflows.job_search.tools import fetch_page
+
+        assert isinstance(fetch_page, StructuredTool)
 
 
 # =============================================================================
@@ -356,8 +444,10 @@ class TestIncompleteResultsFiltering:
         seen_urls_file = tmp_path / "seen_urls.txt"
         seen_urls_file.touch()
 
-        with patch.object(tools, "get_wrapper", return_value=mock_wrapper), \
-             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file):
+        with (
+            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
+        ):
             from src.workflows.job_search.tools import web_search
 
             result = await web_search.ainvoke({"query": "test query"})
@@ -387,8 +477,10 @@ class TestIncompleteResultsFiltering:
         seen_urls_file = tmp_path / "seen_urls.txt"
         seen_urls_file.touch()
 
-        with patch.object(tools, "get_wrapper", return_value=mock_wrapper), \
-             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file):
+        with (
+            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
+        ):
             from src.workflows.job_search.tools import web_search
 
             result = await web_search.ainvoke({"query": "test query"})
@@ -417,8 +509,10 @@ class TestIncompleteResultsFiltering:
         seen_urls_file = tmp_path / "seen_urls.txt"
         seen_urls_file.touch()
 
-        with patch.object(tools, "get_wrapper", return_value=mock_wrapper), \
-             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file):
+        with (
+            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
+        ):
             from src.workflows.job_search.tools import web_search
 
             result = await web_search.ainvoke({"query": "test query"})
@@ -463,12 +557,16 @@ class TestSummarizationMiddleware:
             captured_kwargs.update(kwargs)
             return MagicMock()
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file), \
-             patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm), \
-             patch("src.workflows.job_search.agent.create_deep_agent", side_effect=capture_create_deep_agent):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+            patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm),
+            patch(
+                "src.workflows.job_search.agent.create_deep_agent",
+                side_effect=capture_create_deep_agent,
+            ),
+        ):
             agent.create_job_search_agent()
 
             # Verify middleware was passed
@@ -496,12 +594,16 @@ class TestSummarizationMiddleware:
             captured_kwargs.update(kwargs)
             return MagicMock()
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file), \
-             patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm), \
-             patch("src.workflows.job_search.agent.create_deep_agent", side_effect=capture_create_deep_agent):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+            patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm),
+            patch(
+                "src.workflows.job_search.agent.create_deep_agent",
+                side_effect=capture_create_deep_agent,
+            ),
+        ):
             agent.create_job_search_agent()
 
             middleware = captured_kwargs["middleware"][0]
@@ -527,12 +629,16 @@ class TestSummarizationMiddleware:
             captured_kwargs.update(kwargs)
             return MagicMock()
 
-        with patch.object(agent, "MEMORIES_DIR", memories_dir), \
-             patch.object(agent, "JOBS_FILE", jobs_file), \
-             patch.object(agent, "SEEN_URLS_FILE", seen_urls_file), \
-             patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm), \
-             patch("src.workflows.job_search.agent.create_deep_agent", side_effect=capture_create_deep_agent):
-
+        with (
+            patch.object(agent, "MEMORIES_DIR", memories_dir),
+            patch.object(agent, "JOBS_FILE", jobs_file),
+            patch.object(agent, "SEEN_URLS_FILE", seen_urls_file),
+            patch("src.workflows.job_search.agent.get_agent_llm", return_value=mock_llm),
+            patch(
+                "src.workflows.job_search.agent.create_deep_agent",
+                side_effect=capture_create_deep_agent,
+            ),
+        ):
             agent.create_job_search_agent()
 
             middleware = captured_kwargs["middleware"][0]
@@ -550,12 +656,15 @@ def test_job_search_agent_imports():
     from langchain_core.tools import StructuredTool
 
     from src.workflows.job_search.agent import create_job_search_agent
-    from src.workflows.job_search.tools import fetch, web_search
+    from src.workflows.job_search.tools import fetch, fetch_page, search, web_search
 
     assert callable(create_job_search_agent)
     # @tool decorator wraps functions as StructuredTool instances
     assert isinstance(web_search, StructuredTool)
     assert isinstance(fetch, StructuredTool)
+    # Aliases should also be StructuredTool instances
+    assert isinstance(search, StructuredTool)
+    assert isinstance(fetch_page, StructuredTool)
 
 
 def test_blocked_domains_list():

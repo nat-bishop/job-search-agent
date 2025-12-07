@@ -1,7 +1,6 @@
 """Smoke tests to verify basic imports and configuration work."""
 
 
-
 def test_config_loads():
     """Verify settings can be loaded from environment."""
     from src.core.config import settings

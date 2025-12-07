@@ -11,9 +11,7 @@ class TestGetModelContextLength:
         from src.core import llm
 
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "model_info": {"context_length": 32768}
-        }
+        mock_response.json.return_value = {"model_info": {"context_length": 32768}}
 
         # Clear cache before test
         llm.get_model_context_length.cache_clear()
@@ -70,9 +68,7 @@ class TestGetModelContextLength:
         from src.core import llm
 
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "model_info": {"context_length": 65536}
-        }
+        mock_response.json.return_value = {"model_info": {"context_length": 65536}}
 
         llm.get_model_context_length.cache_clear()
 
@@ -91,9 +87,7 @@ class TestGetModelContextLength:
         from src.core import llm
 
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "model_info": {"context_length": 4096}
-        }
+        mock_response.json.return_value = {"model_info": {"context_length": 4096}}
 
         llm.get_model_context_length.cache_clear()
 

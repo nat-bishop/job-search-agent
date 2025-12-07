@@ -12,7 +12,6 @@ Run:
 """
 
 import asyncio
-import sys
 
 from src.core.config import settings
 from src.core.tracing import get_langfuse_handler
@@ -72,7 +71,9 @@ def print_event(event):
             # Show tool calls (agent deciding to call something)
             if hasattr(msg, "tool_calls") and msg.tool_calls:
                 for tc in msg.tool_calls:
-                    tool_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "unknown")
+                    tool_name = (
+                        tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "unknown")
+                    )
                     print_flush(f"{label} calling: {tool_name}")
 
             # Show tool results

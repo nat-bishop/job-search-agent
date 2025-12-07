@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `time_range` parameter for `web_search` tool (day, week, month, year)
+  - Filters search results to recent timeframes via SearXNG API
+  - Useful for finding recent job postings
+- PDF support in `fetch` tool via pymupdf/pymupdf4llm
+  - Converts PDF documents to Markdown for LLM processing
+  - Auto-detects PDF content type from response bytes
+- Tool aliases for model robustness
+  - `search` is an alias for `web_search`
+  - `fetch_page` is an alias for `fetch`
+  - Prevents tool-not-found errors when different LLMs use different naming conventions
+- URL normalization in `fetch` tool (auto-prepends `https://` if missing)
+- Reddit URL rewriting in `fetch` tool (reddit.com -> old.reddit.com for better scraping)
+- Text cleaning utilities (unicode normalization, emoji removal, whitespace collapse)
+- Word-based truncation (5000 words) instead of character-based for more predictable LLM token usage
 - Job search workflow (`src/workflows/job_search/`)
   - Main agent delegates to research subagent for web searches
   - SearXNG integration for self-hosted web search (replaces Exa)
@@ -25,15 +39,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Persistent model storage in `.ollama-data/` volume
   - Pinned image versions for reproducibility
 - Smoke tests (`tests/test_smoke.py`)
-- Job search tests (`tests/test_job_search.py`) covering memory, prompts, and URL handling
+- Job search tests (`tests/test_job_search.py`) covering memory, prompts, URL handling, and tool aliases
 - URL deduplication in job search workflow
   - `web_search` filters out already-seen URLs before returning results
   - `fetch` tracks URLs after successful fetch
 - URL blocking in `fetch` tool
   - Blocks social media URLs (Instagram, Facebook, Twitter/X, LinkedIn)
-  - Blocks PDF URLs (not parseable as HTML)
 
 ### Changed
+- `fetch` tool rewritten to use Trafilatura instead of Playwright
+  - Faster content extraction (no browser required)
+  - Falls back to BeautifulSoup when Trafilatura fails
+  - Shared httpx client with connection pooling and User-Agent header
 - **Breaking:** Simplified LLM factory to local Ollama only
   - Removed `LLMProvider` enum (was single-value)
   - Removed provider switching - uses Ollama directly
@@ -43,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `fetch_page` tool to `fetch` (reduces tool hallucinations with local models)
 
 ### Removed
+- Playwright dependency (replaced by Trafilatura for content extraction)
+- PDF URL blocking in `fetch` tool (PDFs are now supported)
 - `src/api/` directory (empty placeholder for future API)
 - `src/services/` directory (empty placeholder)
 - `config/` directory (unused)

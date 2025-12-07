@@ -24,8 +24,12 @@ dependencies = [
     # Deep Agents (subagents, context management, long-term memory)
     "deepagents>=0.2.8",
 
-    # Web & Browser
-    "playwright>=1.49.0",
+    # Web scraping & content extraction
+    "trafilatura>=2.0.0",  # Fast content extraction (replaces Playwright for most pages)
+    "beautifulsoup4>=4.12.0",  # Fallback HTML parsing
+    "pymupdf>=1.25.0",  # PDF reading
+    "pymupdf4llm>=0.0.20",  # PDF to Markdown conversion
+    "filetype>=1.2.0",  # MIME type detection
 
     # Config & Utilities
     "pydantic>=2.12.5",
@@ -41,8 +45,6 @@ dependencies = [
     # HTTP
     "httpx>=0.28.0",
 
-    # Web scraping (for fetch_page tool)
-    "html2text>=2024.2.26",
 
     # Config
     "PyYAML>=6.0",
@@ -58,6 +60,8 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
     "mypy>=1.14.0",
+    "pre-commit>=4.0.0",
+    "types-PyYAML>=6.0.0",
 ]
 
 vllm = [

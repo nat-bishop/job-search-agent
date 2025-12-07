@@ -56,8 +56,6 @@ pip install -e ".[dev]"
 
 ```bash
 pip install -e ".[dev]"       # Install/update deps
-ruff check src/               # Lint
-mypy src/                     # Type check
 
 # Docker services (Ollama + SearXNG)
 docker compose up -d          # Start all containers
@@ -66,6 +64,22 @@ docker compose exec ollama ollama pull gpt-oss:120b  # Pull model
 
 # Run job search workflow
 python scripts/run_job_search.py
+```
+
+## Code Quality (Automated)
+
+Pre-commit hooks run automatically on `git commit`:
+- `ruff` - Linting and formatting (auto-fix enabled)
+- `mypy` - Type checking
+
+Claude Code hooks run on every file write/edit for instant feedback.
+
+Manual commands (if needed):
+```bash
+pre-commit run --all-files    # Run all hooks manually
+ruff check src/ --fix         # Lint with auto-fix
+ruff format src/              # Format
+mypy src/                     # Type check
 ```
 
 ## Principles

@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(docker compose exec:*)"
+      "Bash(docker compose exec:*)",
+      "Bash(find:*)",
+      "mcp__docs-langchain__SearchDocsByLangChain",
+      "mcp__langfuse-docs__searchLangfuseDocs",
+      "WebSearch",
+      "WebFetch(domain:docs.searxng.org)",
+      "Bash(ruff check:*)",
+      "Bash(mypy:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pre-commit run:*)",
+      "Bash(source .venv/Scripts/activate)"
     ],
     "deny": [],
     "ask": []
