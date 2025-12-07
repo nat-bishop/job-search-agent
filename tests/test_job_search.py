@@ -393,31 +393,6 @@ class TestWordTruncation:
 
 
 # =============================================================================
-# tools.py - Tool Aliases
-# =============================================================================
-
-
-class TestToolAliases:
-    """Tests for tool alias functionality."""
-
-    def test_search_alias_exists(self):
-        """search alias tool exists and is callable."""
-        from langchain_core.tools import StructuredTool
-
-        from src.workflows.job_search.tools import search
-
-        assert isinstance(search, StructuredTool)
-
-    def test_fetch_page_alias_exists(self):
-        """fetch_page alias tool exists and is callable."""
-        from langchain_core.tools import StructuredTool
-
-        from src.workflows.job_search.tools import fetch_page
-
-        assert isinstance(fetch_page, StructuredTool)
-
-
-# =============================================================================
 # tools.py - Incomplete Results Filtering
 # =============================================================================
 
@@ -445,7 +420,7 @@ class TestIncompleteResultsFiltering:
         seen_urls_file.touch()
 
         with (
-            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SearxSearchWrapper", return_value=mock_wrapper),
             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
         ):
             from src.workflows.job_search.tools import web_search
@@ -478,7 +453,7 @@ class TestIncompleteResultsFiltering:
         seen_urls_file.touch()
 
         with (
-            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SearxSearchWrapper", return_value=mock_wrapper),
             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
         ):
             from src.workflows.job_search.tools import web_search
@@ -510,7 +485,7 @@ class TestIncompleteResultsFiltering:
         seen_urls_file.touch()
 
         with (
-            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SearxSearchWrapper", return_value=mock_wrapper),
             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
         ):
             from src.workflows.job_search.tools import web_search
@@ -549,15 +524,12 @@ def test_job_search_agent_imports():
     from langchain_core.tools import StructuredTool
 
     from src.workflows.job_search.agent import create_job_search_agent
-    from src.workflows.job_search.tools import fetch, fetch_page, search, web_search
+    from src.workflows.job_search.tools import fetch, web_search
 
     assert callable(create_job_search_agent)
     # @tool decorator wraps functions as StructuredTool instances
     assert isinstance(web_search, StructuredTool)
     assert isinstance(fetch, StructuredTool)
-    # Aliases should also be StructuredTool instances
-    assert isinstance(search, StructuredTool)
-    assert isinstance(fetch_page, StructuredTool)
 
 
 def test_blocked_domains_list():
@@ -591,7 +563,7 @@ class TestRetryBehavior:
 
         call_count = 0
 
-        async def failing_then_success(*args, **kwargs):
+        async def failing_then_success(*_args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count < 3:
@@ -605,7 +577,7 @@ class TestRetryBehavior:
         seen_urls_file.touch()
 
         with (
-            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SearxSearchWrapper", return_value=mock_wrapper),
             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
             patch.object(tools, "langfuse"),
         ):
@@ -631,7 +603,7 @@ class TestRetryBehavior:
         seen_urls_file.touch()
 
         with (
-            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SearxSearchWrapper", return_value=mock_wrapper),
             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
             patch.object(tools, "langfuse"),
         ):
@@ -670,7 +642,7 @@ class TestResultBuffering:
         seen_urls_file.touch()
 
         with (
-            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SearxSearchWrapper", return_value=mock_wrapper),
             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
             patch.object(tools, "langfuse"),
         ):
@@ -713,7 +685,7 @@ class TestLangfuseMetadata:
         mock_langfuse = MagicMock()
 
         with (
-            patch.object(tools, "get_wrapper", return_value=mock_wrapper),
+            patch.object(tools, "SearxSearchWrapper", return_value=mock_wrapper),
             patch.object(tools, "SEEN_URLS_PATH", seen_urls_file),
             patch.object(tools, "langfuse", mock_langfuse),
         ):
@@ -739,47 +711,66 @@ class TestLangfuseMetadata:
 class TestConfigurableEngines:
     """Tests for configurable search engines from settings."""
 
-    def test_wrapper_uses_engines_from_config(self):
-        """get_wrapper() creates wrapper with engines from settings."""
-        from unittest.mock import MagicMock, patch
+    def test_wrapper_created_with_engines_from_config(self):
+        """SearxSearchWrapper is created with engines from settings."""
+        from unittest.mock import MagicMock, call, patch
 
         from src.workflows.job_search import tools
-
-        # Reset the global wrapper
-        tools._wrapper = None
 
         mock_settings = MagicMock()
         mock_settings.searxng_host = "http://localhost:8080"
         mock_settings.searxng_engines = "brave,qwant"
         mock_settings.search_result_buffer = 2.0
 
-        with patch.object(tools, "settings", mock_settings):
-            wrapper = tools.get_wrapper()
+        mock_wrapper_class = MagicMock()
 
-            assert wrapper.engines == ["brave", "qwant"]
-            assert wrapper.k == 20  # 10 * 2.0
+        with (
+            patch.object(tools, "settings", mock_settings),
+            patch.object(tools, "SearxSearchWrapper", mock_wrapper_class),
+        ):
+            # Call the internal function to trigger wrapper creation
+            import asyncio
 
-        # Clean up
-        tools._wrapper = None
+            try:
+                asyncio.run(tools._searxng_search("test", num_results=20))
+            except Exception:
+                pass  # We just want to check how the wrapper was constructed
 
-    def test_wrapper_uses_buffer_multiplier(self):
-        """get_wrapper() applies search_result_buffer to k."""
-        from unittest.mock import MagicMock, patch
+            # Verify SearxSearchWrapper was called with correct args (may be called multiple times due to retry)
+            expected_call = call(
+                searx_host="http://localhost:8080",
+                k=20,
+                engines=["brave", "qwant"],
+            )
+            assert expected_call in mock_wrapper_class.call_args_list
+
+    def test_wrapper_created_with_correct_k(self):
+        """SearxSearchWrapper k is set from num_results parameter."""
+        from unittest.mock import MagicMock, call, patch
 
         from src.workflows.job_search import tools
-
-        # Reset the global wrapper
-        tools._wrapper = None
 
         mock_settings = MagicMock()
         mock_settings.searxng_host = "http://localhost:8080"
         mock_settings.searxng_engines = "duckduckgo"
-        mock_settings.search_result_buffer = 3.0
 
-        with patch.object(tools, "settings", mock_settings):
-            wrapper = tools.get_wrapper()
+        mock_wrapper_class = MagicMock()
 
-            assert wrapper.k == 30  # 10 * 3.0
+        with (
+            patch.object(tools, "settings", mock_settings),
+            patch.object(tools, "SearxSearchWrapper", mock_wrapper_class),
+        ):
+            import asyncio
 
-        # Clean up
-        tools._wrapper = None
+            try:
+                asyncio.run(tools._searxng_search("test", num_results=30))
+            except Exception:
+                pass
+
+            # Verify k matches num_results
+            expected_call = call(
+                searx_host="http://localhost:8080",
+                k=30,
+                engines=["duckduckgo"],
+            )
+            assert expected_call in mock_wrapper_class.call_args_list

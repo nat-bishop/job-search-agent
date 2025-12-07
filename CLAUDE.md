@@ -83,7 +83,7 @@ ruff format src/              # Format
 mypy src/                     # Type check
 
 # Dead code detection (only when user requests)
-vulture src/ tests/           # Find unused code
+vulture src/ tests/ --min-confidence 80  # Find unused code (skip low-confidence false positives)
 ```
 
 ## Principles

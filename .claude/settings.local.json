@@ -13,9 +13,13 @@
       "Bash(pre-commit run:*)",
       "Bash(source .venv/Scripts/activate)",
       "Bash(docker compose:*)",
-      "Bash(python scripts/run_job_search.py:*)"
+      "Bash(python scripts/run_job_search.py:*)",
+      "WebFetch(domain:www.firecrawl.dev)",
+      "WebFetch(domain:docs.firecrawl.dev)",
+      "Bash(vulture:*)"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "outputStyle": "default"
 }

@@ -93,6 +93,6 @@ def create_job_search_agent() -> Any:
         tools=[],  # Main agent delegates to research subagent
         subagents=[RESEARCH_SUBAGENT],
         system_prompt=SYSTEM_PROMPT,
-        backend=lambda rt: FilesystemBackend(root_dir=DATA_DIR, virtual_mode=True),
+        backend=lambda _: FilesystemBackend(root_dir=DATA_DIR, virtual_mode=True),
         # SummarizationMiddleware is added by default in create_deep_agent
     )

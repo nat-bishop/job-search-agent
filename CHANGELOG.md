@@ -19,10 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF support in `fetch` tool via pymupdf/pymupdf4llm
   - Converts PDF documents to Markdown for LLM processing
   - Auto-detects PDF content type from response bytes
-- Tool aliases for model robustness
-  - `search` is an alias for `web_search`
-  - `fetch_page` is an alias for `fetch`
-  - Prevents tool-not-found errors when different LLMs use different naming conventions
 - URL normalization in `fetch` tool (auto-prepends `https://` if missing)
 - Reddit URL rewriting in `fetch` tool (reddit.com -> old.reddit.com for better scraping)
 - Text cleaning utilities (unicode normalization, emoji removal, whitespace collapse)
@@ -44,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Persistent model storage in `.ollama-data/` volume
   - Pinned image versions for reproducibility
 - Smoke tests (`tests/test_smoke.py`)
-- Job search tests (`tests/test_job_search.py`) covering memory, prompts, URL handling, and tool aliases
+- Job search tests (`tests/test_job_search.py`) covering memory, prompts, and URL handling
 - LLM tests (`tests/test_llm.py`) for context length detection and LLM factory
 - URL deduplication in job search workflow
   - `web_search` filters out already-seen URLs before returning results
@@ -55,6 +51,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ruff for linting and formatting (auto-fix enabled)
   - mypy for type checking
 - Claude Code hooks for instant feedback on file writes/edits
+- SearXNG configuration options in `config.py`
+  - `searxng_engines`: Comma-separated list of search engines (default: `brave,startpage,qwant,mojeek`)
+  - `search_result_buffer`: Multiplier for result buffering (default: `2.0`)
+- Retry logic for `web_search` tool using tenacity
+  - Exponential backoff (3 attempts, max 10s wait)
+  - Handles transient SearXNG failures gracefully
+- Langfuse structured logging in `web_search` tool
+  - `@observe(name="web_search")` decorator for tracing
+  - Logs search metrics: `results_original`, `results_after_filter`, `seen_urls_filtered`
+- Result buffering in `web_search` to ensure consistent result counts
+  - Requests `10 * search_result_buffer` results from SearXNG
+  - Filters out seen URLs, then returns max 10 results
 
 ### Changed
 - `fetch` tool rewritten to use Trafilatura instead of Playwright
@@ -70,6 +78,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `fetch_page` tool to `fetch` (reduces tool hallucinations with local models)
 
 ### Removed
+- Dead code cleanup
+  - Unused tool alias functions (`search`, `fetch_page`) and constants (`WEB_SEARCH_ALIASES`, `FETCH_ALIASES`)
+  - Unused config fields (`searxng_categories`, `database_url`)
 - Simple workflow (`src/workflows/simple/`) - replaced by job search workflow
 - Playwright dependency (replaced by Trafilatura for content extraction)
 - PDF URL blocking in `fetch` tool (PDFs are now supported)

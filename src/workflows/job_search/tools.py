@@ -9,16 +9,12 @@ calls multiple tools in a single response.
 URL deduplication is handled automatically:
 - web_search filters out already-seen URLs before returning to LLM
 - fetch tracks URLs after successful fetch
-
-Tool Aliases:
-- web_search: also responds to "search", "find", "lookup", "search_web"
-- fetch: also responds to "fetch_page", "get_page", "scrape", "get_url"
 """
 
 import re
 import unicodedata
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import filetype  # type: ignore[import-untyped]
@@ -29,11 +25,14 @@ import trafilatura
 from bs4 import BeautifulSoup
 from langchain_community.utilities import SearxSearchWrapper
 from langchain_core.tools import tool
+from langfuse import get_client, observe
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.core.config import settings
 from src.core.logging import get_logger
 
 logger = get_logger("tools")
+langfuse = get_client()
 
 # Path to seen URLs file (same data dir as agent's filesystem)
 SEEN_URLS_PATH = Path(__file__).parent.parent.parent / "data" / "memories" / "seen_urls.txt"
@@ -46,10 +45,6 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
-
-# Tool aliases for model robustness (different models may use different names)
-WEB_SEARCH_ALIASES = ["search", "find", "lookup", "search_web", "web"]
-FETCH_ALIASES = ["fetch_page", "get_page", "scrape", "get_url", "load_page", "fetch_url"]
 
 
 def _load_seen_urls() -> set[str]:
@@ -106,24 +101,28 @@ def _truncate_to_words(text: str, word_limit: int = 5000) -> str:
     return " ".join(words[:word_limit]) + "\n\n[Content truncated...]"
 
 
-# Shared wrapper instance
-_wrapper: SearxSearchWrapper | None = None
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=10))
+async def _searxng_search(query: str, num_results: int, **params: Any) -> list[dict[str, Any]]:
+    """Execute SearXNG search with retry logic.
 
+    Args:
+        query: Search query string
+        num_results: Number of results to request
+        **params: Additional SearXNG API parameters (e.g., time_range)
 
-def get_wrapper() -> SearxSearchWrapper:
-    """Get or create the SearxSearchWrapper instance."""
-    global _wrapper
-    if _wrapper is None:
-        _wrapper = SearxSearchWrapper(
-            searx_host=settings.searxng_host,
-            k=15,  # Fetch more, filter later
-            # Use only DuckDuckGo - other engines are rate-limited
-            engines=["duckduckgo"],
-        )
-    return _wrapper
+    Returns:
+        List of search result dictionaries
+    """
+    wrapper = SearxSearchWrapper(
+        searx_host=settings.searxng_host,
+        k=num_results,
+        engines=settings.searxng_engines.split(","),
+    )
+    return await wrapper.aresults(query, num_results=num_results, **params)
 
 
 @tool
+@observe(name="web_search")
 async def web_search(
     query: str,
     time_range: Literal["day", "week", "month", "year"] | None = None,
@@ -139,23 +138,19 @@ async def web_search(
         Search results with titles, URLs, and snippets
     """
     logger.info("web_search_start", query=query, time_range=time_range)
-    wrapper = get_wrapper()
 
     # Build additional params for SearXNG API
     params: dict[str, str] = {}
     if time_range and time_range in ["day", "week", "month", "year"]:
         params["time_range"] = time_range
 
+    num_results = int(10 * settings.search_result_buffer)
+
     try:
-        # LangChain's typing for aresults doesn't include **kwargs, but implementation accepts them
-        results = await wrapper.aresults(
-            query,
-            num_results=15,
-            **params,  # type: ignore[arg-type]
-        )
+        results = await _searxng_search(query, num_results=num_results, **params)
     except Exception as e:
         logger.warning("web_search_failed", query=query, error=str(e))
-        return f"Search failed: {e}. Try a different query."
+        return f"Search failed after retries: {e}. Try a different query."
 
     if not results:
         logger.warning("web_search_no_results", query=query, reason="empty_response")
@@ -184,6 +179,15 @@ async def web_search(
         query=query,
         total_results=len(results),
         new_results=len(new_results),
+    )
+
+    # Log search metrics to Langfuse span
+    langfuse.update_current_span(
+        metadata={
+            "results_original": len(results),
+            "results_after_filter": len(new_results),
+            "seen_urls_filtered": len(complete_results) - len(new_results),
+        }
     )
 
     # Format results
@@ -296,41 +300,3 @@ async def fetch(url: str) -> str:
     except Exception as e:
         logger.error("fetch_error", url=url, error=str(e))
         return f"Failed to fetch page {url}: {e}"
-
-
-# --- Tool Aliases ---
-# These provide alternative names for tools to handle model training variations.
-# Different LLMs may be trained to call tools with different names (e.g., "search"
-# vs "web_search"). Aliases prevent tool-not-found errors.
-
-
-@tool
-async def search(
-    query: str,
-    time_range: Literal["day", "week", "month", "year"] | None = None,
-) -> str:
-    """Search the web for information. Alias for web_search.
-
-    Args:
-        query: Search query string
-        time_range: Filter to recent results (day, week, month, year)
-
-    Returns:
-        Search results with titles, URLs, and snippets
-    """
-    result: str = await web_search.ainvoke({"query": query, "time_range": time_range})
-    return result
-
-
-@tool
-async def fetch_page(url: str) -> str:
-    """Fetch and extract text content from a webpage. Alias for fetch.
-
-    Args:
-        url: The URL to fetch
-
-    Returns:
-        Extracted text content
-    """
-    result: str = await fetch.ainvoke({"url": url})
-    return result

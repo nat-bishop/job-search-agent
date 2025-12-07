@@ -19,9 +19,8 @@ class Settings(BaseSettings):
 
     # SearXNG (local web search)
     searxng_host: str = Field(default="http://localhost:8080")
-
-    # Database (PostgreSQL for LangGraph Store, optional)
-    database_url: str | None = Field(default=None)
+    searxng_engines: str = Field(default="brave,startpage,qwant,mojeek")
+    search_result_buffer: float = Field(default=2.0)
 
     # Logging
     log_file: str | None = Field(default="logs/ai-agents.jsonl")
