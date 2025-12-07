@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(docker compose exec:*)",
       "Bash(find:*)",
       "mcp__docs-langchain__SearchDocsByLangChain",
       "mcp__langfuse-docs__searchLangfuseDocs",
