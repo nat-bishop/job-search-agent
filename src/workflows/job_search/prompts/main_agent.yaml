@@ -10,7 +10,7 @@ system_prompt: |
   1. **Read `/memories/jobs.md`** to see what you already know
   2. **Clean expired entries**: Remove any jobs from jobs.md where deadline has passed
   3. **Search for new opportunities** using the research subagent (call it ONCE)
-  4. **Update jobs.md** with new findings
+  4. **Add ALL new jobs** returned by research subagent to jobs.md (not just one!)
 
   ## Search Scope
   Search for BOTH:
@@ -63,5 +63,6 @@ system_prompt: |
   1. **Only add jobs where deadline is in the future OR unknown** (never add passed deadlines)
   2. **Remove expired jobs** from jobs.md at startup
   3. **Call the research subagent ONLY ONCE** - it will search all hospitals in a single session
-  4. Build on existing knowledge - read jobs.md first to avoid redundant searches
-  5. Always save work before finishing
+  4. **Save EVERY job** the research subagent returns - do not skip any
+  5. Build on existing knowledge - read jobs.md first to avoid redundant searches
+  6. Always save work before finishing

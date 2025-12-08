@@ -47,7 +47,8 @@ class SearchResult(BaseModel):
 
 
 # Path to seen URLs file (same data dir as agent's filesystem)
-SEEN_URLS_PATH = Path(__file__).parent.parent.parent / "data" / "memories" / "seen_urls.txt"
+# 4 .parent calls: tools.py -> job_search/ -> workflows/ -> src/ -> project root
+SEEN_URLS_PATH = Path(__file__).parent.parent.parent.parent / "data" / "memories" / "seen_urls.txt"
 
 # Domains that require authentication - can't scrape
 BLOCKED_DOMAINS = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com"]
