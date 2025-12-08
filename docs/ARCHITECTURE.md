@@ -44,6 +44,8 @@ Configuration is loaded from `.env` file. See `.env.example` for all available o
 **Design decisions:**
 - Settings-based rather than hard-coded for flexibility
 - Minimal - only includes what's needed for current implementation
+- URL fields use `HttpUrl` type for validation (e.g., `ollama_url`, `searxng_host`)
+- Numeric constraints where applicable (e.g., `search_result_buffer` must be > 0)
 
 ### LLM Factory (`src/core/llm.py`)
 
@@ -261,11 +263,14 @@ Each workflow is a subdirectory containing:
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
 
+# load_prompt() returns validated PromptConfig model
+prompt = load_prompt("main_agent")
+
 agent = create_deep_agent(
     model=get_agent_llm(),
     tools=[],  # Main agent uses subagents
     subagents=[RESEARCH_SUBAGENT],
-    system_prompt=load_prompt("main_agent")["system_prompt"],
+    system_prompt=prompt.system_prompt,  # Type-safe access
     backend=lambda rt: FilesystemBackend(root_dir=DATA_DIR, virtual_mode=True),
 )
 ```
@@ -405,6 +410,41 @@ View traces at: http://localhost:3000
 2. **Local First**: Optimize for running on local models (privacy, cost)
 3. **Configuration Over Code**: Runtime behavior controlled via `.env`
 4. **Type Safety**: Use Pydantic and type hints throughout
+
+### Validation at Boundaries
+
+Pydantic models validate data at system boundaries - where untrusted or external data enters the application:
+
+| Boundary | Model | Purpose |
+|----------|-------|---------|
+| Environment variables | `Settings` | Validates config on startup (`HttpUrl` for URLs, `gt=0` for positive numbers) |
+| YAML prompt files | `PromptConfig` | Ensures required `system_prompt` field exists |
+| External APIs | `SearchResult` | Validates SearXNG responses, filters incomplete results |
+
+**Pattern:**
+```python
+from pydantic import BaseModel
+
+class SearchResult(BaseModel):
+    """Validates external API response."""
+    title: str
+    link: str
+    snippet: str = ""
+
+# Validate and filter - skip malformed data
+results = []
+for r in raw_api_response:
+    try:
+        results.append(SearchResult.model_validate(r))
+    except ValidationError:
+        continue  # Skip incomplete results
+```
+
+**Benefits:**
+- Fail fast on invalid config (before agent runs)
+- Type-safe access to validated data (e.g., `result.title` instead of `result.get("title")`)
+- Self-documenting schemas for YAML files and API responses
+- Graceful handling of malformed external data
 
 ## Next Steps
 

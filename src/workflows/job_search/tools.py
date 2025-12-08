@@ -11,6 +11,8 @@ URL deduplication is handled automatically:
 - fetch tracks URLs after successful fetch
 """
 
+import asyncio
+import random
 import re
 import unicodedata
 from pathlib import Path
@@ -26,6 +28,7 @@ from bs4 import BeautifulSoup
 from langchain_community.utilities import SearxSearchWrapper
 from langchain_core.tools import tool
 from langfuse import get_client, observe
+from pydantic import BaseModel, ValidationError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.core.config import settings
@@ -33,6 +36,15 @@ from src.core.logging import get_logger
 
 logger = get_logger("tools")
 langfuse = get_client()
+
+
+class SearchResult(BaseModel):
+    """Single search result from SearXNG API."""
+
+    title: str
+    link: str
+    snippet: str = ""
+
 
 # Path to seen URLs file (same data dir as agent's filesystem)
 SEEN_URLS_PATH = Path(__file__).parent.parent.parent / "data" / "memories" / "seen_urls.txt"
@@ -102,8 +114,8 @@ def _truncate_to_words(text: str, word_limit: int = 5000) -> str:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=10))
-async def _searxng_search(query: str, num_results: int, **params: Any) -> list[dict[str, Any]]:
-    """Execute SearXNG search with retry logic.
+async def _searxng_search(query: str, num_results: int, **params: Any) -> list[SearchResult]:
+    """Execute SearXNG search with retry logic and validation.
 
     Args:
         query: Search query string
@@ -111,14 +123,23 @@ async def _searxng_search(query: str, num_results: int, **params: Any) -> list[d
         **params: Additional SearXNG API parameters (e.g., time_range)
 
     Returns:
-        List of search result dictionaries
+        List of validated SearchResult objects (incomplete results are filtered out)
     """
     wrapper = SearxSearchWrapper(
-        searx_host=settings.searxng_host,
+        searx_host=str(settings.searxng_host),
         k=num_results,
         engines=settings.searxng_engines.split(","),
     )
-    return await wrapper.aresults(query, num_results=num_results, **params)
+    raw_results = await wrapper.aresults(query, num_results=num_results, **params)
+
+    # Validate and filter - skip incomplete results (upstream SearxSearchWrapper bug)
+    results: list[SearchResult] = []
+    for r in raw_results:
+        try:
+            results.append(SearchResult.model_validate(r))
+        except ValidationError:
+            continue
+    return results
 
 
 @tool
@@ -139,6 +160,10 @@ async def web_search(
     """
     logger.info("web_search_start", query=query, time_range=time_range)
 
+    # Random delay to avoid rate limiting by upstream search engines
+    delay = random.uniform(2.0, 4.0)
+    await asyncio.sleep(delay)
+
     # Build additional params for SearXNG API
     params: dict[str, str] = {}
     if time_range and time_range in ["day", "week", "month", "year"]:
@@ -152,23 +177,17 @@ async def web_search(
         logger.warning("web_search_failed", query=query, error=str(e))
         return f"Search failed after retries: {e}. Try a different query."
 
+    # Results are already validated/filtered by _searxng_search (incomplete results removed)
     if not results:
         logger.warning("web_search_no_results", query=query, reason="empty_response")
         return "No results found. Try different search terms."
 
-    # Filter incomplete results (upstream SearxSearchWrapper bug - some engines return partial data)
-    complete_results = [r for r in results if r.get("title") and r.get("link")]
-
-    if not complete_results:
-        logger.warning("web_search_no_results", query=query, reason="incomplete_data")
-        return "No complete results found (some engines returned partial data). Try different search terms."
-
     # Filter out already-seen URLs BEFORE returning to LLM (shift-left deduplication)
     seen_urls = _load_seen_urls()
-    new_results = [r for r in complete_results if r.get("link", "") not in seen_urls]
+    new_results = [r for r in results if r.link not in seen_urls]
 
     if not new_results:
-        logger.info("web_search_all_seen", query=query, total=len(complete_results))
+        logger.info("web_search_all_seen", query=query, total=len(results))
         return "No NEW results found (all URLs already processed). Try different search terms."
 
     # Limit to 10 results after filtering
@@ -186,17 +205,15 @@ async def web_search(
         metadata={
             "results_original": len(results),
             "results_after_filter": len(new_results),
-            "seen_urls_filtered": len(complete_results) - len(new_results),
+            "seen_urls_filtered": len(results) - len(new_results),
         }
     )
 
-    # Format results
+    # Format results (typed access via SearchResult model)
     output = []
     for r in new_results:
-        title = r.get("title", "No title")
-        url = r.get("link", "")
-        snippet = r.get("snippet", "")[:300]
-        output.append(f"**{title}**\n{url}\n{snippet}")
+        snippet = r.snippet[:300] if r.snippet else ""
+        output.append(f"**{r.title}**\n{r.link}\n{snippet}")
 
     return "\n\n---\n\n".join(output)
 

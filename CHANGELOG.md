@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Pydantic validation at system boundaries
+  - `HttpUrl` validation for `ollama_url` and `searxng_host` in config
+  - `gt=0` constraint for `search_result_buffer` setting
+  - `PromptConfig` model for YAML prompt file validation (ensures `system_prompt` field exists)
+  - `SearchResult` model for SearXNG API response validation (filters incomplete results)
 - Auto-detection of model context length for summarization (`get_model_context_length()` in llm.py)
   - Queries Ollama API for model's context_length at startup
   - Sets `model.profile["max_input_tokens"]` for LangChain middleware

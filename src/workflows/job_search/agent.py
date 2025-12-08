@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 from deepagents import create_deep_agent  # type: ignore[import-untyped]
 from deepagents.backends import FilesystemBackend  # type: ignore[import-untyped]
+from pydantic import BaseModel
 
 from src.core.llm import get_agent_llm
 from src.workflows.job_search.tools import fetch, web_search
@@ -30,8 +31,20 @@ SEEN_URLS_FILE = MEMORIES_DIR / "seen_urls.txt"
 JOBS_HEADER = "# Bay Area New Grad RN Opportunities\n"
 
 
-def load_prompt(name: str) -> dict[str, Any]:
-    """Load a prompt YAML file with variable injection."""
+class PromptConfig(BaseModel):
+    """Schema for YAML prompt files.
+
+    Main agent prompts only need system_prompt.
+    Subagent prompts also need name and description.
+    """
+
+    system_prompt: str
+    name: str | None = None
+    description: str | None = None
+
+
+def load_prompt(name: str) -> PromptConfig:
+    """Load and validate a prompt YAML file with variable injection."""
     path = os.path.join(PROMPTS_DIR, f"{name}.yaml")
     with open(path, encoding="utf-8") as f:
         data: dict[str, Any] = yaml.safe_load(f)
@@ -41,7 +54,8 @@ def load_prompt(name: str) -> dict[str, Any]:
         data["system_prompt"] = data["system_prompt"].replace(
             "{current_date}", date.today().isoformat()
         )
-    return data
+
+    return PromptConfig.model_validate(data)
 
 
 # =============================================================================
@@ -51,12 +65,12 @@ def load_prompt(name: str) -> dict[str, Any]:
 _main_prompt = load_prompt("main_agent")
 _research_prompt = load_prompt("research_subagent")
 
-SYSTEM_PROMPT = _main_prompt["system_prompt"]
+SYSTEM_PROMPT = _main_prompt.system_prompt
 
 RESEARCH_SUBAGENT = {
-    "name": _research_prompt["name"],
-    "description": _research_prompt["description"],
-    "system_prompt": _research_prompt["system_prompt"],
+    "name": _research_prompt.name,
+    "description": _research_prompt.description,
+    "system_prompt": _research_prompt.system_prompt,
     "tools": [web_search, fetch],
     # Inherits default_middleware from SubAgentMiddleware (TodoListMiddleware, FilesystemMiddleware)
     # Research subagent CAN access filesystem but prompt instructs it not to write

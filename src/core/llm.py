@@ -30,7 +30,7 @@ def get_model_context_length(model: str) -> int:
     Returns:
         Context length in tokens. Falls back to 131072 if query fails.
     """
-    url = f"{settings.ollama_url}/api/show"
+    url = f"{str(settings.ollama_url).rstrip('/')}/api/show"
 
     try:
         resp = httpx.post(url, json={"name": model}, timeout=5.0)
@@ -68,7 +68,7 @@ def get_llm(*, temperature: float = 0.0, **kwargs: Any) -> BaseChatModel:
     kwargs.pop("json_mode", None)
 
     # Ollama exposes OpenAI-compatible API at /v1
-    base_url = settings.ollama_url.rstrip("/") + "/v1"
+    base_url = str(settings.ollama_url).rstrip("/") + "/v1"
 
     model = ChatOpenAI(
         model=settings.local_model,
