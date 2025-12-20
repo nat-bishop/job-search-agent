@@ -15,7 +15,12 @@
       "Bash(python scripts/run_job_search.py:*)",
       "WebFetch(domain:www.firecrawl.dev)",
       "WebFetch(domain:docs.firecrawl.dev)",
-      "Bash(vulture:*)"
+      "Bash(vulture:*)",
+      "Bash(uv run pre-commit run:*)",
+      "WebFetch(domain:nursing.ucsfmedicalcenter.org)",
+      "WebFetch(domain:nursingncal.kaiserpermanente.org)",
+      "WebFetch(domain:www.kaiserpermanentejobs.org)",
+      "Bash(uv run:*)"
     ],
     "deny": [],
     "ask": []

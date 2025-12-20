@@ -149,6 +149,11 @@ vulture src/ tests/ --min-confidence 80  # Find unused code (skip low-confidence
 - Python app runs on host, connects to localhost:11434
 - Handle tool call failures gracefully
 
+**Pydantic models:**
+- Use at system boundaries where external data enters (config, YAML, APIs)
+- Don't over-model internal code - only where validation catches real errors
+- Standard Pydantic usage, nothing custom
+
 ## Observability
 
 Uses [Langfuse](https://langfuse.com) for LLM tracing. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#observability) for setup.

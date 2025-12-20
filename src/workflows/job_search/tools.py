@@ -50,6 +50,9 @@ class SearchResult(BaseModel):
 # 4 .parent calls: tools.py -> job_search/ -> workflows/ -> src/ -> project root
 SEEN_URLS_PATH = Path(__file__).parent.parent.parent.parent / "data" / "memories" / "seen_urls.txt"
 
+# Path to jobs JSONL file (append-only storage for job entries)
+JOBS_JSONL_PATH = Path(__file__).parent.parent.parent.parent / "data" / "memories" / "jobs.jsonl"
+
 # Domains that require authentication - can't scrape
 BLOCKED_DOMAINS = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com"]
 
@@ -310,11 +313,133 @@ async def fetch(url: str) -> str:
         return content
 
     except httpx.HTTPStatusError as e:
-        logger.warning("fetch_http_error", url=url, status=e.response.status_code)
-        return f"HTTP error {e.response.status_code}: {url}"
+        status = e.response.status_code
+
+        # Enhanced 403 handling with classification and Jina fallback
+        if status == 403 and "r.jina.ai" not in url:
+            error_type = _classify_403(e.response)
+            logger.warning("fetch_403", url=url, error_type=error_type)
+
+            if error_type in ["cloudflare", "unknown"]:
+                # Try Jina Reader fallback
+                jina_url = f"https://r.jina.ai/{url}"
+                logger.info("fetch_jina_fallback", original=url)
+                try:
+                    jina_response = await client.get(jina_url, timeout=60.0)
+                    jina_response.raise_for_status()
+                    # Process Jina response as text (it returns markdown)
+                    content = _clean_text(jina_response.text)
+                    if content:
+                        word_count = len(content.split())
+                        content = _truncate_to_words(content, word_limit=5000)
+                        _save_url(url)  # Track original URL as seen
+                        logger.info("fetch_jina_success", url=url, words=word_count)
+                        return content
+                except Exception as jina_error:
+                    logger.warning("fetch_jina_failed", url=url, error=str(jina_error))
+                return f"URL blocked (Jina fallback also failed): {url}"
+            elif error_type == "auth_required":
+                return f"URL requires authentication (skipping): {url}"
+            elif error_type == "rate_limit":
+                return f"Rate limited - try again later: {url}"
+
+        logger.warning("fetch_http_error", url=url, status=status)
+        return f"HTTP error {status}: {url}"
     except httpx.RequestError as e:
         logger.warning("fetch_request_error", url=url, error=str(e))
         return f"Request failed for {url}: {e}"
     except Exception as e:
         logger.error("fetch_error", url=url, error=str(e))
         return f"Failed to fetch page {url}: {e}"
+
+
+def _classify_403(response: httpx.Response) -> str:
+    """Classify 403 error type from response headers and body.
+
+    Returns one of: 'rate_limit', 'cloudflare', 'auth_required', 'unknown'
+    """
+    headers = {k.lower(): v for k, v in response.headers.items()}
+    try:
+        body = response.text[:1000].lower()
+    except Exception:
+        body = ""
+
+    # Rate limit detection
+    if "retry-after" in headers:
+        return "rate_limit"
+    if any(x in headers for x in ["x-ratelimit-remaining", "x-ratelimit-reset"]):
+        return "rate_limit"
+    if "too many requests" in body or "rate limit" in body:
+        return "rate_limit"
+
+    # Cloudflare/WAF detection
+    if "cf-ray" in headers or "cloudflare" in body:
+        return "cloudflare"
+
+    # Auth required detection
+    if "not authorized" in body or "access denied" in body or "login" in body:
+        return "auth_required"
+
+    return "unknown"
+
+
+@tool
+def add_job(
+    url: str,
+    organization: str,
+    program: str,
+    deadline: str,
+    details: str,
+) -> str:
+    """Add a job opportunity to the persistent jobs list.
+
+    Handles deduplication automatically - if a job with the same URL exists,
+    it will be skipped. Use this for every job found during research.
+
+    Args:
+        url: Source URL where the job was found (used for deduplication)
+        organization: Hospital/health system name (e.g., "Stanford Health Care")
+        program: Program name (e.g., "Nurse Residency Program Cohort 44")
+        deadline: Application deadline in YYYY-MM-DD format, or "Rolling" if ongoing
+        details: Key details about the job (requirements, how to apply, notes)
+
+    Returns:
+        Confirmation message indicating if job was added or skipped as duplicate
+    """
+    import json
+    from datetime import date
+
+    # Ensure parent directory exists
+    JOBS_JSONL_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing job URLs for deduplication
+    existing_urls: set[str] = set()
+    if JOBS_JSONL_PATH.exists():
+        for line in JOBS_JSONL_PATH.read_text().strip().split("\n"):
+            if line:
+                try:
+                    existing_urls.add(json.loads(line).get("url", ""))
+                except json.JSONDecodeError:
+                    continue  # Skip corrupted lines
+
+    # Check for duplicate
+    if url in existing_urls:
+        logger.info("job_duplicate", url=url)
+        return f"Job from {url} already exists - skipping duplicate"
+
+    # Create job entry
+    job = {
+        "url": url,
+        "organization": organization,
+        "program": program,
+        "deadline": deadline,
+        "details": details,
+        "found_date": date.today().isoformat(),
+    }
+
+    # Append to JSONL file
+    with open(JOBS_JSONL_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(job) + "\n")
+
+    logger.info("job_added", org=organization, program=program, deadline=deadline)
+    return f"Added: {organization} - {program} (deadline: {deadline})"
