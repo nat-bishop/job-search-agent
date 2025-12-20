@@ -21,33 +21,45 @@ search:
     - html
     - json  # Required for API access
 
-# Enable engines that actually work
-# Google/Bing often blocked, DuckDuckGo times out
+# Enable multiple engines for redundancy
+# If one is rate-limited, others should still work
 engines:
-  # Working engines (tested)
-  - name: brave
-    disabled: false
-    weight: 1.5
-  - name: startpage
-    disabled: false
-    weight: 1.3
-  - name: qwant
-    disabled: false
-    weight: 1.0
-
-  # Try Google with longer timeout
+  # Primary engines
   - name: google
     disabled: false
-    weight: 1.2
-    timeout: 6.0
+    weight: 1.5
+    timeout: 8.0
 
-  # Disable broken engines
   - name: duckduckgo
-    disabled: true  # Constant timeouts
-  - name: bing
-    disabled: true  # Returns garbage results
+    disabled: false
+    weight: 1.3
+    timeout: 10.0  # Longer timeout for reliability
 
-  # Disable less relevant engines
+  - name: brave
+    disabled: false
+    weight: 1.2
+
+  # Fallback engines (less likely to rate-limit)
+  - name: mojeek
+    disabled: false
+    weight: 1.0  # UK-based, independent index
+
+  - name: yahoo
+    disabled: false
+    weight: 0.9
+    timeout: 8.0
+
+  - name: startpage
+    disabled: false
+    weight: 0.8  # Google proxy, sometimes blocked
+
+  - name: qwant
+    disabled: false
+    weight: 0.7
+
+  # Disable broken/irrelevant engines
+  - name: bing
+    disabled: true  # Often returns garbage
   - name: wikidata
     disabled: true
   - name: wikipedia

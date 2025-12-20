@@ -22,7 +22,7 @@ setup_logging(json_logs=settings.log_json, log_file=settings.log_file)
 logger = get_logger("job_search")
 
 
-def print_flush(msg: str = ""):
+def print_flush(msg: str = "") -> None:
     """Print and flush immediately for real-time output.
 
     Handles Windows console encoding issues by replacing
@@ -35,36 +35,22 @@ def print_flush(msg: str = ""):
         print(msg.encode("ascii", "replace").decode("ascii"), flush=True)
 
 
-def print_event(event):
+def print_event(event: dict[str, object]) -> None:
     """Print relevant streaming events as they happen.
 
-    With subgraphs=True, events are tuples: (namespace, data)
-    namespace is a tuple showing the subgraph path, e.g., ("task:abc123",)
+    LangGraph create_react_agent emits:
+    - {"agent": {"messages": [AIMessage(...)]}} for agent responses
+    - {"tools": {"messages": [ToolMessage(...)]}} for tool results
     """
-    # Handle subgraphs=True format: (namespace_tuple, event_dict)
-    if isinstance(event, tuple) and len(event) == 2:
-        namespace, event_data = event
-        prefix = " > ".join(namespace) if namespace else "Main"
-    else:
-        prefix = "Main"
-        event_data = event
-
-    if not isinstance(event_data, dict):
+    if not isinstance(event, dict):
         return
 
-    for key, value in event_data.items():
+    for key, value in event.items():
         # Skip internal keys
         if key.startswith("__"):
             continue
 
-        # Determine the label based on event type
-        if key == "agent":
-            label = f"[{prefix}] Agent"
-        elif key == "tools":
-            label = f"[{prefix}] Tool"
-        else:
-            # Subagent or other node (e.g., "research")
-            label = f"[{prefix}] {key.capitalize()}"
+        label = f"[{key.capitalize()}]"
 
         # Process messages in the event
         if not isinstance(value, dict):
@@ -72,6 +58,7 @@ def print_event(event):
         messages = value.get("messages", [])
         if not isinstance(messages, list):
             continue
+
         for msg in messages:
             # Show tool calls (agent deciding to call something)
             if hasattr(msg, "tool_calls") and msg.tool_calls:
@@ -86,7 +73,7 @@ def print_event(event):
                 content = str(msg.content)[:150] if msg.content else ""
                 print_flush(f"{label} {msg.name}: {content}...")
 
-            # Show agent/subagent text responses (not tool calls)
+            # Show agent text responses (not tool calls)
             elif hasattr(msg, "content") and msg.content:
                 if isinstance(msg.content, str) and msg.content.strip():
                     # Only show if it's not a tool-call-only message
@@ -94,7 +81,7 @@ def print_event(event):
                         print_flush(f"{label}: {msg.content[:200]}...")
 
 
-async def main():
+async def main() -> None:
     print_flush("\n" + "=" * 60)
     print_flush("NURSING JOB SEARCH - Bay Area New Grad RN")
     print_flush("=" * 60)
@@ -137,27 +124,31 @@ async def main():
     try:
         # Stream events for real-time progress
         final_content = None
-        config = {"callbacks": [langfuse_handler]} if langfuse_handler else {}
+        config: dict[str, object] = {"recursion_limit": 100}
+        if langfuse_handler:
+            config["callbacks"] = [langfuse_handler]
 
         # Wrap in Langfuse span to get trace_id for log correlation
         if langfuse:
             with langfuse.start_as_current_observation(as_type="span", name="job-search-run"):
                 trace_id = langfuse.get_current_trace_id()
-                bind_trace_id(trace_id)
+                if trace_id:
+                    bind_trace_id(trace_id)
                 logger.info("job_search_start", model=settings.local_model)
                 print_flush(f"Trace ID: {trace_id}")
 
                 async for event in agent.astream(
                     {"messages": [{"role": "user", "content": task}]},
                     config=config,
-                    subgraphs=True,
                 ):
                     print_event(event)
+                    # Capture final agent response
                     if "agent" in event:
                         messages = event["agent"].get("messages", [])
                         for msg in messages:
                             if hasattr(msg, "content") and isinstance(msg.content, str):
-                                final_content = msg.content
+                                if not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                                    final_content = msg.content
 
                 logger.info("job_search_complete")
                 clear_trace_context()
@@ -167,14 +158,15 @@ async def main():
             async for event in agent.astream(
                 {"messages": [{"role": "user", "content": task}]},
                 config=config,
-                subgraphs=True,
             ):
                 print_event(event)
+                # Capture final agent response
                 if "agent" in event:
                     messages = event["agent"].get("messages", [])
                     for msg in messages:
                         if hasattr(msg, "content") and isinstance(msg.content, str):
-                            final_content = msg.content
+                            if not (hasattr(msg, "tool_calls") and msg.tool_calls):
+                                final_content = msg.content
             logger.info("job_search_complete")
 
         print_flush("\n" + "=" * 60)

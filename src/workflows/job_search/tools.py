@@ -254,6 +254,13 @@ async def fetch(url: str) -> str:
     """
     # Auto-prepend https:// if missing
     url = _normalize_url(url)
+
+    # Skip already-fetched URLs (deduplication)
+    seen_urls = _load_seen_urls()
+    if url in seen_urls:
+        logger.info("fetch_skipped_duplicate", url=url)
+        return "Already fetched this URL. Use the content from earlier, or try a different URL."
+
     logger.info("fetch_start", url=url)
 
     # Skip social media (require authentication)
@@ -443,3 +450,71 @@ def add_job(
 
     logger.info("job_added", org=organization, program=program, deadline=deadline)
     return f"Added: {organization} - {program} (deadline: {deadline})"
+
+
+# Filesystem root for read_file and ls tools (restricted to data/ directory)
+DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"
+
+
+@tool
+def read_file(path: str) -> str:
+    """Read file contents from the data directory.
+
+    Args:
+        path: File path relative to data/ (e.g., "/memories/jobs.md")
+
+    Returns:
+        File contents as string, or error message if file doesn't exist
+    """
+    # Resolve path relative to DATA_DIR, stripping leading slash
+    full_path = (DATA_DIR / path.lstrip("/")).resolve()
+
+    # Security: ensure we're still inside DATA_DIR
+    try:
+        full_path.relative_to(DATA_DIR.resolve())
+    except ValueError:
+        return f"Error: Path escapes data directory: {path}"
+
+    if not full_path.exists():
+        return f"Error: File not found: {path}"
+    if full_path.is_dir():
+        return f"Error: Path is a directory, use ls instead: {path}"
+
+    try:
+        content = full_path.read_text(encoding="utf-8")
+        return content if content else "(empty file)"
+    except Exception as e:
+        return f"Error reading file: {e}"
+
+
+@tool
+def ls(path: str = "/") -> str:
+    """List directory contents in the data directory.
+
+    Args:
+        path: Directory path relative to data/ (default: "/" for root)
+
+    Returns:
+        List of files and directories, or error message
+    """
+    # Resolve path relative to DATA_DIR, stripping leading slash
+    full_path = (DATA_DIR / path.lstrip("/")).resolve()
+
+    # Security: ensure we're still inside DATA_DIR
+    try:
+        full_path.relative_to(DATA_DIR.resolve())
+    except ValueError:
+        return f"Error: Path escapes data directory: {path}"
+
+    if not full_path.exists():
+        return f"Error: Directory not found: {path}"
+    if not full_path.is_dir():
+        return f"Error: Path is a file, not a directory: {path}"
+
+    try:
+        entries = sorted(full_path.iterdir())
+        if not entries:
+            return "(empty directory)"
+        return "\n".join(f"{p.name}/" if p.is_dir() else p.name for p in entries)
+    except Exception as e:
+        return f"Error listing directory: {e}"

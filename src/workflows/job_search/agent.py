@@ -1,23 +1,23 @@
-"""Job search agent using deep agents pattern.
+"""Job search agent using LangGraph.
 
-Main agent orchestrates the search and maintains memory.
-Research subagent handles web searches and returns results.
+Single agent with all tools (web search, fetch, persistence).
+Uses create_react_agent for simple react loop.
 Prompts are loaded from YAML files for easier iteration.
 """
 
+import json
 import os
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import yaml
-from deepagents import create_deep_agent  # type: ignore[import-untyped]
-from deepagents.backends import FilesystemBackend  # type: ignore[import-untyped]
+from langgraph.prebuilt import create_react_agent
 from pydantic import BaseModel
 
 from src.core.llm import get_agent_llm
 from src.core.logging import get_logger
-from src.workflows.job_search.tools import fetch, web_search
+from src.workflows.job_search.tools import add_job, fetch, ls, read_file, web_search
 
 logger = get_logger(__name__)
 
@@ -32,33 +32,11 @@ JOBS_FILE = MEMORIES_DIR / "jobs.md"
 JOBS_JSONL_FILE = MEMORIES_DIR / "jobs.jsonl"
 SEEN_URLS_FILE = MEMORIES_DIR / "seen_urls.txt"
 
-JOBS_HEADER = "# Bay Area New Grad RN Opportunities\n"
-
-
-class RestrictedFilesystemBackend(FilesystemBackend):  # type: ignore[misc]
-    """FilesystemBackend that blocks edit operations on jobs.md.
-
-    The main agent should use add_job() tool instead of editing jobs.md directly.
-    This prevents the LLM from accidentally wiping the jobs file.
-    """
-
-    def edit(self, path: str, *args: Any, **kwargs: Any) -> str:
-        """Block edit operations on jobs.md to prevent accidental data wipes."""
-        if "jobs.md" in path:
-            return "Error: Cannot edit jobs.md directly. Use add_job() tool instead."
-        return super().edit(path, *args, **kwargs)  # type: ignore[no-any-return]
-
 
 class PromptConfig(BaseModel):
-    """Schema for YAML prompt files.
-
-    Main agent prompts only need system_prompt.
-    Subagent prompts also need name and description.
-    """
+    """Schema for YAML prompt files."""
 
     system_prompt: str
-    name: str | None = None
-    description: str | None = None
 
 
 def load_prompt(name: str) -> PromptConfig:
@@ -81,22 +59,11 @@ def load_prompt(name: str) -> PromptConfig:
 # =============================================================================
 
 _main_prompt = load_prompt("main_agent")
-_research_prompt = load_prompt("research_subagent")
-
 SYSTEM_PROMPT = _main_prompt.system_prompt
-
-RESEARCH_SUBAGENT = {
-    "name": _research_prompt.name,
-    "description": _research_prompt.description,
-    "system_prompt": _research_prompt.system_prompt,
-    "tools": [web_search, fetch],
-    # Inherits default_middleware from SubAgentMiddleware (TodoListMiddleware, FilesystemMiddleware)
-    # Research subagent CAN access filesystem but prompt instructs it not to write
-}
 
 
 # =============================================================================
-# Agent Factory
+# Memory Management
 # =============================================================================
 
 
@@ -122,8 +89,6 @@ def generate_jobs_markdown() -> None:
     Expired jobs (deadline < today) are filtered out but kept in the JSONL source.
     Called at agent startup to ensure jobs.md reflects current state.
     """
-    import json
-
     if not JOBS_JSONL_FILE.exists() or JOBS_JSONL_FILE.stat().st_size == 0:
         JOBS_FILE.write_text("# Bay Area New Grad RN Opportunities\n\nNo jobs found yet.\n")
         logger.info("jobs_markdown_generated", total=0, active=0)
@@ -172,23 +137,29 @@ def generate_jobs_markdown() -> None:
     logger.info("jobs_markdown_generated", total=len(jobs), active=len(active_jobs))
 
 
+# =============================================================================
+# Agent Factory
+# =============================================================================
+
+
 def create_job_search_agent() -> Any:
-    """Create the job search agent with persistent local filesystem.
+    """Create job search agent using LangGraph.
 
-    Uses RestrictedFilesystemBackend (no edit_file) to prevent accidental data wipes.
-    The main agent has add_job tool to persist job findings with deduplication.
+    Single agent with all tools:
+    - web_search: Search the web via SearXNG
+    - fetch: Extract content from URLs
+    - add_job: Persist jobs to JSONL (handles deduplication)
+    - read_file: Read files from data directory
+    - ls: List directory contents
+
+    Uses create_react_agent for a simple react loop with tool calling.
     """
-    from src.workflows.job_search.tools import add_job
-
     llm = get_agent_llm()
     _init_memory_files()
     generate_jobs_markdown()  # Regenerate jobs.md from JSONL source
 
-    return create_deep_agent(
+    return create_react_agent(
         model=llm,
-        tools=[add_job],  # Main agent can add jobs directly
-        subagents=[RESEARCH_SUBAGENT],
-        system_prompt=SYSTEM_PROMPT,
-        backend=lambda _: RestrictedFilesystemBackend(root_dir=DATA_DIR, virtual_mode=True),
-        # SummarizationMiddleware is added by default in create_deep_agent
+        tools=[web_search, fetch, add_job, read_file, ls],
+        prompt=SYSTEM_PROMPT,
     )
