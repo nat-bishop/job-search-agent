@@ -226,14 +226,14 @@ python scripts/run_job_search.py
 ```
 
 **Architecture:**
-- Main agent delegates to `research` subagent for web searches (SearXNG)
-- Persistent memory in `/memories/` survives across runs (FilesystemBackend)
+- Single LangGraph ReAct agent with all tools (web_search, fetch, add_job, read_file, ls)
+- Append-only JSONL persistence in `data/memories/` survives across runs
 - Agent tracks seen jobs to report only NEW findings
 - Prompts stored in YAML with `{current_date}` injection
 
 **Key files:**
-- `src/workflows/job_search/agent.py` - Main agent + research subagent, loads YAML prompts
-- `src/workflows/job_search/tools.py` - web_search (SearXNG), fetch_page (Playwright)
+- `src/workflows/job_search/agent.py` - Agent factory, prompt loading, memory management
+- `src/workflows/job_search/tools.py` - web_search (SearXNG), fetch (trafilatura/PDF)
 - `src/workflows/job_search/prompts/` - YAML prompt files
 - `scripts/run_job_search.py` - Entry point (simple task trigger)
 
