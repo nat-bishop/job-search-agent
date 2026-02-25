@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # SearXNG (local web search)
     searxng_host: HttpUrl = Field(default="http://localhost:8080")  # type: ignore[assignment]
-    searxng_engines: str = Field(default="brave,startpage,qwant,mojeek")
+    searxng_engines: str = Field(default="duckduckgo,google,bing")
     search_result_buffer: float = Field(default=2.0, gt=0)
 
     # Logging

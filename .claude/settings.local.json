@@ -20,7 +20,9 @@
       "WebFetch(domain:nursing.ucsfmedicalcenter.org)",
       "WebFetch(domain:nursingncal.kaiserpermanente.org)",
       "WebFetch(domain:www.kaiserpermanentejobs.org)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "mcp__langfuse-docs__getLangfuseOverview",
+      "mcp__langfuse-docs__getLangfuseDocsPage"
     ],
     "deny": [],
     "ask": []

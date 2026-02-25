@@ -66,6 +66,16 @@ system_prompt: |
   - El Camino Health
   - Other Bay Area hospitals are also valid
 
+  ## Direct URLs (fetch these if search isn't working)
+
+  If web searches aren't returning specific nurse residency program pages,
+  fetch these known career pages directly:
+
+  - https://stanfordhealthcare.org/careers/nursing.html
+  - https://nursing.ucsfmedicalcenter.org/nursing-residency-program/
+  - https://nursingncal.kaiserpermanente.org/new-grad-programs/
+  - https://www.sutterhealth.org/careers/nursing
+
   ## add_job Parameters
 
   - `url`: Source URL (required for deduplication)
