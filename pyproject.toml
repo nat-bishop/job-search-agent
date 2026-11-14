@@ -16,10 +16,10 @@ keywords = ["ai", "agents", "langgraph", "automation"]
 
 dependencies = [
     # LangGraph & LangChain (Nov 2025 - LangChain 1.0!)
-    "langgraph>=1.0.3,<1.0.4",  # 1.0.4 has breaking change with deepagents
+    "langgraph>=1.2.22,<1.2.23",  # 1.0.4 has breaking change with deepagents
     "langchain-core>=1.1.0",
     "langchain-community>=0.3.0",  # SearxSearchWrapper for web search
-    "langchain-openai>=1.1.0",  # Used for Ollama (better tool calling than langchain-ollama)
+    "langchain-openai>=1.1.14",  # Used for Ollama (better tool calling than langchain-ollama)
 
     # Deep Agents (subagents, context management, long-term memory)
     "deepagents>=0.2.8",
@@ -27,14 +27,14 @@ dependencies = [
     # Web scraping & content extraction
     "trafilatura>=2.0.0",  # Fast content extraction (replaces Playwright for most pages)
     "beautifulsoup4>=4.12.0",  # Fallback HTML parsing
-    "pymupdf>=1.25.0",  # PDF reading
+    "pymupdf>=2.1",  # PDF reading
     "pymupdf4llm>=0.0.20",  # PDF to Markdown conversion
     "filetype>=1.2.0",  # MIME type detection
 
     # Config & Utilities
     "pydantic>=2.12.5",
-    "pydantic-settings>=2.7.0",
-    "python-dotenv>=1.0.1",
+    "pydantic-settings>=2.14.2",
+    "python-dotenv>=1.2.2",
 
     # Logging & Storage
     "structlog>=25.1.0",
@@ -55,7 +55,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.3.0",
+    "pytest>=9.2.0",
     "pytest-asyncio>=0.25.0",
     "pytest-cov>=6.0.0",
     "ruff>=0.8.0",
